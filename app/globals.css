@@ -195,34 +195,6 @@ h2 {
   margin:24px 0 12px;
 }
 
-.configuration>div {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:13px 0;
-  border-bottom:1px solid var(--line);
-  gap:10px;
-}
-.configuration dt {
-  font-size:12px;
-  color:#b8bdb7;
-}
-.configuration dd {
-  font:15px var(--mono);
-  margin:0;
-  white-space:nowrap;
-}
-.configuration small {
-  font:8px var(--mono);
-  letter-spacing:.3px;
-  color:var(--muted);
-  margin-left:3px;
-}
-.configuration dt small {
-  display:block;
-  margin:5px 0 0;
-  font-size:7px;
-}
 
 .start-button,.stop-button,.inspect-button {
   min-height:44px;

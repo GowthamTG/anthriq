@@ -3,6 +3,7 @@ import { resolve, join } from 'node:path';
 import next from 'next';
 import { Acquisition } from './core/acquisition.ts';
 import { inspect } from './core/storage.ts';
+import { config, ConfigurationError } from './core/config.ts';
 
 const dev = process.argv.includes('--dev');
 const port = Number(process.env.PORT || 3000);
@@ -38,16 +39,13 @@ const heartbeat = setInterval(() => {
   }
 }, 15000);
 
-async function readEmptyBody(req: IncomingMessage) {
+async function readConfiguration(req: IncomingMessage) {
   let body = '';
   for await (const chunk of req) {
     body += chunk;
     if (body.length > 1024) throw Object.assign(new Error('Request body is too large'), { statusCode: 413 });
   }
-  if (body) {
-    const parsed = JSON.parse(body);
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object' || Object.keys(parsed).length) throw Object.assign(new Error('Phase one uses the default acquisition settings'), { statusCode: 400 });
-  }
+  return config(body ? JSON.parse(body) : {});
 }
 
 const server = createServer(async (req, res) => {
@@ -66,8 +64,8 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/acquisitions') {
-      await readEmptyBody(req);
-      return json(res, 202, acquisition.start());
+      const settings = await readConfiguration(req);
+      return json(res, 202, acquisition.start(settings));
     }
     const match = url.pathname.match(/^\/api\/acquisitions\/([a-f0-9-]{36})(\/stop)?$/);
     if (match) {
@@ -85,7 +83,7 @@ const server = createServer(async (req, res) => {
   } catch (cause) {
     const error = cause as Error & { code?: string; statusCode?: number };
     const status = error.code === 'ENOENT' ? 404 : error.statusCode || (error instanceof SyntaxError ? 400 : 500);
-    json(res, status, { error: error.message });
+    json(res, status, { error: error.message, ...(error instanceof ConfigurationError ? { fields: error.fields } : {}) });
   }
 });
 

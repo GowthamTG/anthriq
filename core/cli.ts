@@ -10,11 +10,20 @@ import { Playback } from './playback.mjs';
 const [command, ...args] = process.argv.slice(2);
 const options: Record<string, string> = {};
 let directory;
-for (let i = 0; i < args.length; i++) {
-  if (args[i].startsWith('--')) { const key = args[i].slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()); options[key] = args[++i]; }
-  else directory = resolve(args[i]);
-}
 try {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('--')) {
+      const option = args[i];
+      const value = args[++i];
+      if (value === undefined || value.startsWith('--')) throw new Error(`Missing value for ${option}`);
+      const key = option.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      if (key in options) throw new Error(`Duplicate option: ${option}`);
+      options[key] = value;
+    } else {
+      if (directory) throw new Error('Provide only one recording directory');
+      directory = resolve(args[i]);
+    }
+  }
   if (command === 'record') {
     directory ??= resolve('recordings', new Date().toISOString().replace(/[:.]/g, '-'));
     const acquisition = new Acquisition();
@@ -48,6 +57,6 @@ try {
     process.on('SIGINT', () => playback.close());
     playback.play();
   } else {
-    console.log('SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> --speed 1\nSee README.md for range, playback and overload behavior.');
+    console.log('SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42 --display-name "Bench run"\n    Optional: --buffer-bytes 4194304 --write-delay-ms 0\n    --seconds 0 means until stopped; settings bounds are documented in README.md.\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> --speed 1\nSee README.md for range, playback and overload behavior.');
   }
 } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }

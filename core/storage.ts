@@ -2,7 +2,7 @@ import type { FileHandle } from 'node:fs/promises';
 import type { RecordingMetadata, RecordingInspection } from './contracts.ts';
 import { open, readFile, writeFile, rename, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { stride } from './signal.ts';
+import { stride, WAVEFORM } from './signal.ts';
 
 export async function writeAll(file: FileHandle, buffer: Buffer) {
   let offset = 0;
@@ -22,6 +22,7 @@ export async function saveMetadata(directory: string, metadata: RecordingMetadat
 export async function inspect(directory: string): Promise<RecordingInspection> {
   const metadata: RecordingMetadata = JSON.parse(await readFile(join(directory, 'metadata.json'), 'utf8'));
   if (metadata.format !== 'SCOPE/1' || !Number.isInteger(metadata.channels) || metadata.channels < 1 || metadata.channels > 256 || !Number.isFinite(metadata.sampleRate) || metadata.sampleRate <= 0) throw new Error('Unsupported or invalid recording metadata');
+  if (metadata.waveform !== WAVEFORM) throw new Error(`Unsupported waveform: ${metadata.waveform}`);
   const { size } = await stat(join(directory, 'frames.bin'));
   const recordBytes = stride(metadata.channels);
   return { ...metadata, fileBytes: size, completeRecords: Math.floor(size / recordBytes), trailingBytes: size % recordBytes, recordBytes };

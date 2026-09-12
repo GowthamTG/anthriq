@@ -1,5 +1,6 @@
 import type { GeneratorCommand, GeneratorMessage } from './contracts.ts';
 import { config, encodeFrames, stride } from './signal.ts';
+import { safeExtent } from './config.ts';
 
 const settings = config(JSON.parse(process.argv[2]));
 const width = stride(settings.channels);
@@ -13,6 +14,7 @@ const send = (message: GeneratorMessage) => { if (process.connected) process.sen
 function tick(final = false) {
   const seconds = elapsed();
   const due = Math.floor(Math.min(seconds, settings.seconds || Infinity) * settings.sampleRate);
+  if (!safeExtent(due, settings.channels)) throw new Error('Source extent exceeds safe frame, sample-count, or file-offset range');
   maxLagMs = Math.max(maxLagMs, Math.max(0, due - next) / settings.sampleRate * 1000);
   while (next < due) {
     const count = Math.min(batchFrames, due - next);

@@ -1,0 +1,50 @@
+import type { Settings } from '../core/contracts';
+
+export type ConfigurationDraft = Record<'channels' | 'sampleRate' | 'seed' | 'seconds' | 'displayName', string>;
+
+export function draftFrom(settings: Settings): ConfigurationDraft {
+  return {
+    channels: String(settings.channels),
+    sampleRate: String(settings.sampleRate),
+    seed: String(settings.seed),
+    seconds: String(settings.seconds),
+    displayName: settings.displayName || '',
+  };
+}
+
+const numericFields = [
+  { key: 'channels', label: 'Channels', hint: '1–256 channels', step: '1' },
+  { key: 'sampleRate', label: 'Sample rate', hint: 'Hz per channel · 1–100,000', step: '1' },
+  { key: 'seed', label: 'Seed', hint: '0–2,147,483,647', step: '1' },
+  { key: 'seconds', label: 'Duration', hint: 'Seconds · 0 means until stopped', step: 'any' },
+] as const;
+
+export function ConfigurationForm({ draft, fields, disabled, onChange, onStart }: {
+  draft: ConfigurationDraft;
+  fields: Record<string, string>;
+  disabled: boolean;
+  onChange: (key: keyof ConfigurationDraft, value: string) => void;
+  onStart: () => void;
+}) {
+  const aggregate = Number(draft.channels) * Number(draft.sampleRate);
+  const inputClass = 'w-full border border-line bg-background px-3 py-2.5 font-mono text-sm text-[#f0f0eb] outline-none focus:border-accent disabled:opacity-60 aria-invalid:border-[#ff9c89]';
+  return <form id="acquisition-setup" noValidate onSubmit={event => { event.preventDefault(); if (!disabled) onStart(); }} className="mt-5 mb-6">
+    <fieldset disabled={disabled} className="grid grid-cols-2 gap-x-4 gap-y-4">
+      <div className="col-span-2">
+        <label htmlFor="displayName" className="mb-2 block text-xs text-muted">Recording name</label>
+        <input id="displayName" value={draft.displayName} onChange={event => onChange('displayName', event.target.value)} placeholder="Untitled recording" maxLength={120} aria-invalid={Boolean(fields.displayName)} aria-describedby={fields.displayName ? 'displayName-error' : undefined} className={inputClass} />
+        {fields.displayName && <p id="displayName-error" className="mt-2 text-xs text-[#ff9c89]">{fields.displayName}</p>}
+      </div>
+      {numericFields.map(({ key, label, hint, step }) => <div key={key}>
+        <label htmlFor={key} className="mb-2 block text-xs text-muted">{label}</label>
+        <input id={key} type="number" step={step} value={draft[key]} onChange={event => onChange(key, event.target.value)} aria-invalid={Boolean(fields[key])} aria-describedby={`${key}-hint${fields[key] ? ` ${key}-error` : ''}`} className={inputClass} />
+        <p id={`${key}-hint`} className="mt-2 text-[10px] leading-relaxed text-muted">{hint}</p>
+        {fields[key] && <p id={`${key}-error`} className="mt-2 text-xs leading-relaxed text-[#ff9c89]">{fields[key]}</p>}
+      </div>)}
+    </fieldset>
+    <div className="mt-5 flex items-center justify-between border-t border-line pt-4 text-xs text-muted">
+      <span>Aggregate sample rate</span>
+      <span><output data-testid="aggregate-rate" className="font-mono text-sm text-[#f0f0eb]">{Number.isSafeInteger(aggregate) && aggregate > 0 ? aggregate.toLocaleString('en-US') : '—'}</output> values/s</span>
+    </div>
+  </form>;
+}

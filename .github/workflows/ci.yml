@@ -1,4 +1,4 @@
-name: T01 checks
+name: Acquisition checks
 
 on:
   push:

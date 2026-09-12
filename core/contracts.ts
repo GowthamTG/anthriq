@@ -5,6 +5,7 @@ export interface Settings {
   bufferBytes: number;
   seconds: number;
   writeDelayMs: number;
+  displayName: string;
 }
 export type SettingsInput = Partial<Record<keyof Settings, number | string>>;
 export interface GeneratorMetrics {

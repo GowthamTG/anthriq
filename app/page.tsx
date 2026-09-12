@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { AcquisitionState, RecordingInspection } from '../core/contracts';
+import { RecordingDetails } from './recording-details';
 import { config } from '../core/config';
 import { ConfigurationForm, draftFrom, type ConfigurationDraft } from './configuration-form';
 
@@ -21,7 +22,6 @@ function clock(value: number | null | undefined) {
   const s = Math.floor(value);
   return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
-const timestamp = (value: string | undefined) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'medium' }) : '—';
 
 export default function Acquire() {
   const [state, setState] = useState<AcquisitionState | null>(null);
@@ -92,6 +92,7 @@ export default function Acquire() {
   return <>
     <header className="topbar flex h-[86px] items-center justify-between border-b border-line px-12 max-[1050px]:px-7 max-[760px]:h-[70px] max-[760px]:px-5">
       <a href="/" className="brand flex items-center gap-3 text-[23px] font-extrabold tracking-[3px] max-[760px]:text-xl" aria-label="SCOPE home"><span className="brand-mark grid size-[30px] place-items-center bg-accent pr-[3px] text-[22px] tracking-[-3px] text-[#111]" aria-hidden="true">S</span>SCOPE<span className="brand-caption ml-[18px] font-mono text-[9px] font-normal tracking-[1.2px] text-muted max-[760px]:hidden">SIGNAL INSTRUMENTS</span></a>
+      <nav aria-label="Workspace" className="ml-auto mr-6 text-xs"><a href="/recordings" className="text-muted hover:text-white">Recordings ↗</a></nav>
       <div className="connection flex items-center gap-2.5 font-mono text-[11px] text-muted max-[760px]:gap-[7px] max-[760px]:text-[9px]"><span className={connected ? 'connection-dot online' : 'connection-dot'} /><span>{connected ? 'Local connection' : state ? 'Reconnecting' : 'Connecting'}</span></div>
     </header>
 
@@ -143,24 +144,7 @@ export default function Acquire() {
         <div className="saved-action grid shrink-0 gap-3 text-right max-[760px]:w-full max-[760px]:text-left"><span className="unverified font-mono text-[9px] text-[#c0ba9c]">Integrity not yet verified</span><button className="inspect-button" onClick={inspect} disabled={inspecting || !connected}>{inspecting ? 'Reading metadata…' : 'Inspect recording'} <span aria-hidden="true">↗</span></button></div>
       </section>}
 
-      {details && <section className="details-panel border border-t-0 border-line bg-panel-deep px-[30px] py-6 max-[760px]:px-5">
-        <div className="details-heading flex items-center justify-between"><h2>Recording details</h2><span className="micro" data-testid="format">{details.format}</span></div>
-        <dl className="details-grid my-7 grid grid-cols-3 gap-6 max-[760px]:grid-cols-2 max-[760px]:gap-x-[15px] max-[760px]:gap-y-5">
-          <div><dt>Recording name</dt><dd data-testid="saved-name">{details.displayName || 'Untitled recording'}</dd></div>
-          <div><dt>Signal configuration</dt><dd data-testid="saved-settings">{details.channels} channels · {number(details.sampleRate)} Hz · seed {details.seed}</dd></div>
-          <div><dt>Requested duration</dt><dd>{details.seconds ? `${details.seconds} seconds` : 'Until stopped'}</dd></div>
-          <div><dt>Started</dt><dd>{timestamp(details.startedAt)}</dd></div>
-          <div><dt>Stopped</dt><dd>{timestamp(details.stoppedAt)}</dd></div>
-          <div><dt>Source duration</dt><dd>{details.duration.toFixed(3)} seconds</dd></div>
-          <div><dt>Expected frames</dt><dd data-testid="expected-frames">{number(details.expectedFrames)}</dd></div>
-          <div><dt>Saved frames</dt><dd data-testid="saved-frames">{number(details.recordedFrames)}</dd></div>
-          <div><dt>Saved scalar samples</dt><dd>{number(details.totalSamples)}</dd></div>
-          <div><dt>Binary layout</dt><dd>Indexed float32 · Little-endian</dd></div>
-          <div><dt>File size</dt><dd>{number(details.fileBytes)} bytes</dd></div>
-          <div><dt>Partial trailing bytes</dt><dd>{details.trailingBytes}</dd></div>
-        </dl>
-        <div className="location grid gap-2.5 border-t border-line pt-5"><span className="micro">LOCAL RECORDING</span><code>{details.location}</code></div>
-      </section>}
+      {details && <RecordingDetails details={details} />}
 
       <section className="method grid grid-cols-[1.1fr_1fr_1fr_1fr] items-start gap-[30px] border-b border-line pt-[34px] pb-8 max-[1050px]:gap-4 max-[760px]:grid-cols-2 max-[760px]:gap-x-4 max-[760px]:gap-y-[25px] max-[760px]:py-7" aria-label="How recording works">
         <div className="method-intro"><span className="micro">THE RECORDING PATH</span><p>One clock.<br />A complete record.</p></div>

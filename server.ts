@@ -3,6 +3,7 @@ import { resolve, join } from 'node:path';
 import next from 'next';
 import { Acquisition } from './core/acquisition.ts';
 import { inspect } from './core/storage.ts';
+import { listRecordings, recordingId } from './core/library.ts';
 import { config, ConfigurationError } from './core/config.ts';
 
 const dev = process.argv.includes('--dev');
@@ -66,6 +67,15 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/acquisitions') {
       const settings = await readConfiguration(req);
       return json(res, 202, acquisition.start(settings));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/recordings') {
+      for (const key of url.searchParams.keys()) if (!['limit', 'cursor'].includes(key)) return json(res, 400, { error: `Unknown query parameter: ${key}` });
+      return json(res, 200, await listRecordings(root, { limit: url.searchParams.get('limit') ?? undefined, cursor: url.searchParams.get('cursor') ?? undefined }));
+    }
+    if (req.method === 'GET' && url.pathname.startsWith('/api/recordings/')) {
+      const id = decodeURIComponent(url.pathname.slice('/api/recordings/'.length));
+      if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
+      return json(res, 200, { ...await inspect(join(root, id)), location: join(root, id) });
     }
     const match = url.pathname.match(/^\/api\/acquisitions\/([a-f0-9-]{36})(\/stop)?$/);
     if (match) {

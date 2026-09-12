@@ -5,6 +5,7 @@ import { Acquisition } from './acquisition.ts';
 import { config } from './signal.ts';
 import { inspect, readFrames } from './storage.ts';
 import { verify } from './verify.mjs';
+import { listRecordings } from './library.ts';
 import { Playback } from './playback.mjs';
 
 const [command, ...args] = process.argv.slice(2);
@@ -24,7 +25,10 @@ try {
       directory = resolve(args[i]);
     }
   }
-  if (command === 'record') {
+  if (command === 'list') {
+    for (const key of Object.keys(options)) if (!['limit', 'cursor'].includes(key)) throw new Error(`Unknown list option: ${key}`);
+    console.log(JSON.stringify(await listRecordings(directory || resolve(process.env.SCOPE_RECORDINGS_DIR || 'recordings'), options), null, 2));
+  } else if (command === 'record') {
     directory ??= resolve('recordings', new Date().toISOString().replace(/[:.]/g, '-'));
     const acquisition = new Acquisition();
     acquisition.start(config(options), directory);
@@ -57,6 +61,6 @@ try {
     process.on('SIGINT', () => playback.close());
     playback.play();
   } else {
-    console.log('SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42 --display-name "Bench run"\n    Optional: --buffer-bytes 4194304 --write-delay-ms 0\n    --seconds 0 means until stopped; settings bounds are documented in README.md.\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> --speed 1\nSee README.md for range, playback and overload behavior.');
+    console.log('SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42 --display-name "Bench run"\n    Optional: --buffer-bytes 4194304 --write-delay-ms 0\n    --seconds 0 means until stopped; settings bounds are documented in README.md.\n  list [root] --limit 10 --cursor <last-recording-id>\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> --speed 1\nSee README.md for range, playback and overload behavior.');
   }
 } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }

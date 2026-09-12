@@ -12,7 +12,7 @@ await mkdir(directory, { recursive: true });
 const file = await open(join(directory, 'frames.bin'), 'wx');
 const lossFile = await open(join(directory, 'losses.jsonl'), 'wx');
 const measurements = await open(join(directory, 'metrics.jsonl'), 'wx');
-const metadata: RecordingMetadata = { format: 'SCOPE/1', id: directory.split('/').at(-1)!, ...settings, status: 'recording', startedAt: new Date().toISOString(), expectedFrames: null, recordedFrames: 0, totalSamples: 0, duration: 0, sampleType: 'float32', bytesPerSample: 4, byteOrder: 'little-endian', layout: 'uint64 frame index, then interleaved channel values', waveform: WAVEFORM, recordBytes: stride(settings.channels) };
+const metadata: RecordingMetadata = { format: 'SCOPE/1', id: directory.split('/').at(-1)!, ...settings, status: 'recording', startedAt: new Date().toISOString(), expectedFrames: null, recordedFrames: 0, totalSamples: 0, duration: null, sampleType: 'float32', bytesPerSample: 4, byteOrder: 'little-endian', layout: 'uint64 frame index, then interleaved channel values', waveform: WAVEFORM, recordBytes: stride(settings.channels) };
 await saveMetadata(directory, metadata);
 const generator = fork(new URL('./generator.ts', import.meta.url), [JSON.stringify(settings)], { serialization: 'advanced', stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
 metadata.processes = { recorder: process.pid, generator: generator.pid! };

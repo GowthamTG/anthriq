@@ -27,7 +27,7 @@ export interface RecordingMetadata extends Settings {
   expectedFrames: number | null;
   recordedFrames: number;
   totalSamples: number;
-  duration: number;
+  duration: number | null;
   sampleType: string;
   bytesPerSample: number;
   byteOrder: string;
@@ -45,6 +45,9 @@ export interface RecordingInspection extends RecordingMetadata {
   fileBytes: number;
   completeRecords: number;
   trailingBytes: number;
+  readableBytes: number;
+  warnings: string[];
+  condition: 'finalized' | 'incomplete' | 'attention';
   location?: string;
 }
 export interface Frame { index: number; values: number[] }

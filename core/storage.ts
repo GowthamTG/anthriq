@@ -1,8 +1,9 @@
 import type { FileHandle } from 'node:fs/promises';
 import type { RecordingMetadata, RecordingInspection } from './contracts.ts';
-import { open, readFile, writeFile, rename, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { stride, WAVEFORM } from './signal.ts';
+import { open, writeFile, rename, stat } from 'node:fs/promises';
+import { join, basename } from 'node:path';
+import { stride } from './signal.ts';
+import { readMetadata } from './metadata.ts';
 
 export async function writeAll(file: FileHandle, buffer: Buffer) {
   let offset = 0;
@@ -20,12 +21,31 @@ export async function saveMetadata(directory: string, metadata: RecordingMetadat
 }
 
 export async function inspect(directory: string): Promise<RecordingInspection> {
-  const metadata: RecordingMetadata = JSON.parse(await readFile(join(directory, 'metadata.json'), 'utf8'));
-  if (metadata.format !== 'SCOPE/1' || !Number.isInteger(metadata.channels) || metadata.channels < 1 || metadata.channels > 256 || !Number.isFinite(metadata.sampleRate) || metadata.sampleRate <= 0) throw new Error('Unsupported or invalid recording metadata');
-  if (metadata.waveform !== WAVEFORM) throw new Error(`Unsupported waveform: ${metadata.waveform}`);
-  const { size } = await stat(join(directory, 'frames.bin'));
+  const metadata = await readMetadata(directory);
+  const physical = await stat(join(directory, 'frames.bin'));
+  if (!physical.isFile()) throw Object.assign(new Error('Frame data must be a regular file'), { statusCode: 422 });
+  const { size } = physical;
+  if (!Number.isSafeInteger(size)) throw new Error('Recording file size exceeds safe integer offsets');
   const recordBytes = stride(metadata.channels);
-  return { ...metadata, fileBytes: size, completeRecords: Math.floor(size / recordBytes), trailingBytes: size % recordBytes, recordBytes };
+  const completeRecords = Math.floor(size / recordBytes);
+  const trailingBytes = size % recordBytes;
+  const warnings: string[] = [];
+  if (metadata.id !== basename(directory)) warnings.push('Metadata recording identity differs from the bundle directory');
+  if (trailingBytes) warnings.push(`Partial trailing record: ${trailingBytes} bytes excluded from the readable prefix`);
+  if (metadata.status === 'completed' && metadata.recordedFrames !== completeRecords) warnings.push('Metadata record count differs from physical complete-record count');
+  if (metadata.totalSamples !== metadata.recordedFrames * metadata.channels) warnings.push('Metadata scalar count contradicts its frame count');
+  if (metadata.expectedFrames !== null && metadata.duration !== metadata.expectedFrames / metadata.sampleRate) warnings.push('Metadata duration contradicts the expected frame extent');
+  if (metadata.status === 'completed') {
+    if (!metadata.stoppedAt) warnings.push('Finalized metadata has no stop timestamp');
+    if (metadata.expectedFrames !== null && metadata.recordedFrames + (metadata.droppedFrames ?? 0) !== metadata.expectedFrames) warnings.push('Recorded and lost frame counts contradict the expected extent');
+  }
+  if (metadata.droppedFrames) warnings.push(`${metadata.droppedFrames} lost frames are declared; recording is not lossless`);
+  const contradictory = warnings.length > 0;
+  if (metadata.expectedFrames === null) warnings.push('Final source extent is unconfirmed; duration and completeness are unknown');
+  if (metadata.status !== 'completed') warnings.push('Recording is not finalized; metadata counts may lag the readable physical prefix');
+  const condition = contradictory || (metadata.status === 'completed' && metadata.expectedFrames === null) ? 'attention' : metadata.status === 'completed' ? 'finalized' : 'incomplete';
+  return { ...metadata, duration: metadata.expectedFrames === null ? null : metadata.duration, fileBytes: size, completeRecords, trailingBytes, recordBytes, readableBytes: completeRecords * recordBytes, warnings, condition };
+
 }
 
 async function readExact(file: FileHandle, buffer: Buffer, position: number, bytes = buffer.length) {

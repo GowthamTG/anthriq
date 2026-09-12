@@ -82,4 +82,4 @@ export type Batch = { type: 'batch'; start: number; count: number; buffer: Buffe
 export type SourceDone = { type: 'done'; expectedFrames: number; generator: GeneratorMetrics };
 export type GeneratorMessage = Batch | SourceDone | { type: 'started'; timestamp: string } | { type: 'status'; generator: GeneratorMetrics };
 export type RecorderCommand = { type: 'stop' | 'status-ack' };
-export type RecorderMessage = { type: 'started' | 'completed'; metadata: RecordingMetadata } | { type: 'error'; error: string } | ({ type: 'status'; preview: Frame[] } & AcquisitionMetrics);
+export type RecorderMessage = { type: 'started' | 'stopping' | 'completed'; metadata: RecordingMetadata } | { type: 'error'; error: string } | ({ type: 'status'; preview: Frame[] } & AcquisitionMetrics);

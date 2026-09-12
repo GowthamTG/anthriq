@@ -10,6 +10,10 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
           <span className={details.condition === 'finalized' ? 'text-[#c1cfb2]' : 'text-[#ffba89]'}>{details.condition === 'finalized' ? 'Finalized' : details.condition === 'attention' ? 'Needs attention' : 'Incomplete / in progress'}</span>
           <span className="text-muted">Integrity not verified</span>
         </div>
+        {typeof details.error === 'string' && <div data-testid="inspection-failure" role="alert" className="mt-5 border border-[#805a47] bg-[#2a211c] p-4 text-sm leading-relaxed text-[#ffba89]">
+          <p className="mb-1 font-semibold">Acquisition failed</p><p className="break-words">{details.error}</p>
+          <p className="mt-2 text-xs">The complete frames below remain readable. This recording has not passed integrity verification.</p>
+        </div>}
         {details.warnings.length > 0 && <div data-testid="inspection-warnings" role="status" className="my-5 border border-[#7a6c42] bg-[#25231a] p-4 text-xs leading-relaxed text-[#e4d6ad]">
           <p className="mb-2 font-semibold">Read this recording with care</p>
           <ul className="list-disc space-y-1 pl-4">{details.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>

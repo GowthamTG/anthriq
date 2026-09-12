@@ -1,7 +1,7 @@
 import type { RecordingMetadata, GeneratorMetrics, Frame, Batch, SourceDone, GeneratorMessage, RecorderMessage, RecorderCommand } from './contracts.ts';
 import { fork } from 'node:child_process';
-import { once } from 'node:events';
-import { mkdir, open } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
+import { mkdir, open, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { config, stride, WAVEFORM } from './signal.ts';
 import { writeAll, saveMetadata } from './storage.ts';
@@ -16,6 +16,10 @@ const metadata: RecordingMetadata = { format: 'SCOPE/1', id: directory.split('/'
 await saveMetadata(directory, metadata);
 const generator = fork(new URL('./generator.ts', import.meta.url), [JSON.stringify(settings)], { serialization: 'advanced', stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
 metadata.processes = { recorder: process.pid, generator: generator.pid! };
+// Install before any await so even a very early exit is observed.
+const generatorClosed = new Promise<number | null>(resolve => generator.once('close', code => resolve(code)));
+const cancelled = new AbortController();
+let stopTimer: ReturnType<typeof setTimeout> | undefined;
 const queue: Batch[] = [];
 let draining = false, finalMessage: SourceDone | undefined, finalized = false, failing = false;
 let recorded = 0, nextExpected = 0, dropped = 0, queueBytes = 0, peakQueueBytes = 0, statusPending = false, metricsBusy = false;
@@ -38,15 +42,16 @@ async function drain() {
   if (draining || failing) return;
   draining = true;
   try {
-    while (queue.length) {
+    while (queue.length && !failing) {
       const batch = queue.shift()!;
-      if (settings.writeDelayMs) await new Promise(r => setTimeout(r, settings.writeDelayMs));
+      if (settings.writeDelayMs) await delay(settings.writeDelayMs, undefined, { signal: cancelled.signal });
+      if (failing) return;
       await recordGap(batch.start);
       await writeAll(file, batch.buffer);
       recorded += batch.count;
       nextExpected = batch.start + batch.count;
       queueBytes -= batch.buffer.length;
-      if (generator.connected) generator.send({ type: 'credit', bytes: batch.buffer.length });
+      if (generator.connected) generator.send({ type: 'credit', bytes: batch.buffer.length }, error => { if (error && !finalized) void fail(error); });
       if (performance.now() - lastPreview > 100) {
         lastPreview = performance.now();
         const step = Math.max(1, Math.floor(batch.count / 80));
@@ -81,12 +86,13 @@ async function finish() {
   while (metricsBusy) await new Promise(r => setTimeout(r, 5));
   await writeAll(measurements, Buffer.from(JSON.stringify({ ...stats(), preview: undefined, final: true }) + '\n'));
   await measurements.close();
-  await saveMetadata(directory, metadata);
-  const generatorClosed = once(generator, 'close');
-  generator.send({ type: 'finish' });
-  const [exitCode] = await generatorClosed;
+  if (generator.connected) generator.send({ type: 'finish' }, error => { if (error) void fail(error); });
+  const exitCode = await generatorClosed;
   if (exitCode !== 0) throw new Error('Generator did not exit cleanly');
+  if (failing) return;
+  await saveMetadata(directory, metadata);
   await deliver({ type: 'completed', metadata });
+  clearTimeout(stopTimer);
   if (process.connected) process.disconnect();
 }
 
@@ -94,22 +100,34 @@ async function fail(cause: unknown) {
   const error = cause instanceof Error ? cause : new Error(String(cause));
   if (failing) return;
   failing = true;
+  cancelled.abort();
+  clearTimeout(stopTimer);
   clearInterval(statusTimer);
   metadata.status = 'failed';
   metadata.error = error.message;
   metadata.recordedFrames = recorded;
   metadata.totalSamples = recorded * settings.channels;
-  const generatorClosed = generator.exitCode === null && generator.signalCode === null ? once(generator, 'close') : Promise.resolve();
   generator.kill('SIGKILL');
   await generatorClosed.catch(() => {});
-  await saveMetadata(directory, metadata).catch(() => {});
-  await deliver({ type: 'error', error: error.message }).catch(() => {});
   await Promise.allSettled([file.close(), lossFile.close(), measurements.close()]);
+  const physical = await stat(join(directory, 'frames.bin')).catch(() => null);
+  metadata.recordedFrames = physical ? Math.floor(physical.size / metadata.recordBytes) : recorded;
+  metadata.totalSamples = metadata.recordedFrames * settings.channels;
+  metadata.stoppedAt = new Date().toISOString();
+  await saveMetadata(directory, metadata).catch(saveError => { metadata.error += `; failure metadata could not be saved: ${saveError.message}`; });
+  await deliver({ type: 'error', error: metadata.error! }).catch(() => {});
   process.exitCode = 1;
   if (process.connected) process.disconnect();
 }
 
-function requestStop() { if (generator.connected && !finalMessage) generator.send({ type: 'stop' }); }
+function boundStop() {
+  stopTimer ??= setTimeout(() => void fail(new Error('Recorder did not finish within the 10-second shutdown limit')), 10000);
+}
+function requestStop() {
+  if (failing) return;
+  boundStop();
+  if (generator.connected && !finalMessage) generator.send({ type: 'stop' }, error => { if (error) void fail(error); });
+}
 generator.on('message', (message: GeneratorMessage) => {
   if (message.type === 'batch') {
     queue.push(message);
@@ -119,10 +137,14 @@ generator.on('message', (message: GeneratorMessage) => {
     drain();
   } else if (message.type === 'status') {
     generatorMetrics = message.generator;
-    generator.send({ type: 'status-ack' });
+    if (generator.connected) generator.send({ type: 'status-ack' }, error => { if (error && !finalized) void fail(error); });
   } else if (message.type === 'done') {
+    boundStop();
     finalMessage = message;
     generatorMetrics = message.generator;
+    metadata.expectedFrames = message.expectedFrames;
+    metadata.duration = message.expectedFrames / settings.sampleRate;
+    send({ type: 'stopping', metadata });
     drain();
   } else if (message.type === 'started') { metadata.startedAt = message.timestamp; send({ type: 'started', metadata }); }
 });
@@ -140,4 +162,7 @@ const statusTimer = setInterval(() => {
     writeAll(measurements, Buffer.from(JSON.stringify({ ...stats(), preview: undefined }) + '\n')).catch(fail).finally(() => { metricsBusy = false; });
   }
 }, 100);
-generator.send({ type: 'start' });
+try {
+  await saveMetadata(directory, metadata);
+  generator.send({ type: 'start' }, error => { if (error) void fail(error); });
+} catch (error) { await fail(error); }

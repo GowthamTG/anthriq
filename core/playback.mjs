@@ -1,8 +1,13 @@
-import { inspect, readFrames, selection } from './storage.mjs';
+import { inspect, readFrames, selection } from './storage.ts';
 
 // The source emits all requested samples. The UI may draw a decimated preview.
 // Callers must consume onFrames synchronously; lag is measured, never hidden.
 export class Playback {
+  /**
+   * @param {string} directory
+   * @param {(frames: import('./contracts.ts').Frame[]) => void} onFrames
+   * @param {(status: { playing: boolean }) => void} onStatus
+   */
   constructor(directory, onFrames = () => {}, onStatus = () => {}) {
     this.directory = directory;
     this.onFrames = onFrames;

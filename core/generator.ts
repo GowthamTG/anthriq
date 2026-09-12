@@ -1,12 +1,14 @@
-import { config, encodeFrames, stride } from './signal.mjs';
+import type { GeneratorCommand, GeneratorMessage } from './contracts.ts';
+import { config, encodeFrames, stride } from './signal.ts';
 
 const settings = config(JSON.parse(process.argv[2]));
 const width = stride(settings.channels);
 const batchFrames = Math.max(1, Math.min(Math.round(settings.sampleRate / 100), Math.floor(settings.bufferBytes / width), 4096));
 let credit = settings.bufferBytes, next = 0, emitted = 0, dropped = 0;
-let start, timer, stopped = false, statusPending = false, maxLagMs = 0;
+let start: bigint | undefined, timer: NodeJS.Timeout | undefined;
+let stopped = false, statusPending = false, maxLagMs = 0;
 const elapsed = () => start ? Number(process.hrtime.bigint() - start) / 1e9 : 0;
-const send = message => { if (process.connected) process.send(message, err => { if (err) process.exit(1); }); };
+const send = (message: GeneratorMessage) => { if (process.connected) process.send!(message, err => { if (err) process.exit(1); }); };
 
 function tick(final = false) {
   const seconds = elapsed();
@@ -48,7 +50,7 @@ const statusTimer = setInterval(() => {
   send({ type: 'status', generator: metrics() });
 }, 250);
 
-process.on('message', message => {
+process.on('message', (message: GeneratorCommand) => {
   if (message.type === 'start' && !start) {
     start = process.hrtime.bigint();
     timer = setInterval(() => tick(), 5);

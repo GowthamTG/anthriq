@@ -6,6 +6,8 @@ A local signal-acquisition workbench for a Node.js and React technical assessmen
 
 The complete [implementation specification](SPEC.md) contains the agreed architecture, 56 user stories, operation contracts, storage format, 30 acceptance scenarios, and delivery phases. It is published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issues/1), labeled `ready-for-agent`.
 
+The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. Start with [issue #2: local capture](https://github.com/GowthamTG/anthriq/issues/2).
+
 The project currently contains specification and setup documents plus initial **untested core drafts**. The Next.js/React interface, executable test suite, dependency manifest, performance evidence, and final run instructions are not complete. This commit is a starting point for implementation, not a submission-ready application.
 
 ## Agreed direction

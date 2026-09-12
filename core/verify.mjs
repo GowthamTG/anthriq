@@ -1,5 +1,5 @@
-import { inspect, scanFrames } from './storage.mjs';
-import { sample } from './signal.mjs';
+import { inspect, scanFrames } from './storage.ts';
+import { sample } from './signal.ts';
 
 export async function verify(directory) {
   const started = performance.now();

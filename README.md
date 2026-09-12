@@ -6,9 +6,9 @@ A local signal-acquisition workbench for a Node.js and React technical assessmen
 
 The complete [implementation specification](SPEC.md) contains the agreed architecture, 56 user stories, operation contracts, storage format, 30 acceptance scenarios, and delivery phases. It is published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issues/1), labeled `ready-for-agent`.
 
-The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) is merged. T02 adds runtime configuration; T03 adds the recordings library and prefix inspection. The next individual phase is T04, process/disk failure handling.
+The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) is merged. T02 adds runtime configuration; T03 adds the recordings library and prefix inspection. T04 adds bounded shutdown and process/disk failure handling; the next individual phase is T05, overload accounting.
 
-**T01–T03 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
+**T01–T04 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
 
 ## Stack and decision review
 
@@ -92,7 +92,7 @@ Each recording directory contains:
 
 At defaults, two seconds contains 8,000 frames, 256,000 values, and 1,088,000 frame-data bytes. Frame indices retain the original timeline; final expected extent is supplied by the generator rather than inferred from saved record count. The [waveform and binary reference](docs/waveform.md) supplies the exact formula, rounding rules, and independently calculated values. Unknown waveform identifiers are rejected. The [specification](SPEC.md) defines the complete planned contracts.
 
-Start reserves ownership immediately; a concurrent start returns conflict. Stop is idempotent, including during startup. Errors are shown rather than reported as completion. Accepted data is drained and synced on normal stop. Application/CLI shutdown has a ten-second limit before forced cleanup and failure; comprehensive stall, crash, disk-exhaustion, and recovery testing belongs to T04/T05. Clean-stop syncing is not a power-loss durability guarantee.
+Start reserves ownership immediately; a concurrent start returns conflict. Stop is idempotent, including during startup. Errors are shown rather than reported as completion. Accepted data is drained and synced on normal stop. Browser Stop, CLI/application shutdown, and timed-capture drain have a ten-second limit before forced cleanup and failure. Repeated requests do not extend that deadline. A failed recording retains its readable complete-frame prefix and an actionable cause where metadata can be written. A confirmed source extent is retained; otherwise duration and completeness remain unknown. See [shutdown and failure behavior](docs/failure-handling.md) for the tested cases and durability limits.
 
 ## Tests
 
@@ -104,13 +104,13 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-On Linux, use `npx playwright install --with-deps chromium` when system browser dependencies are absent. Browser tests start their own production servers on ports 3100, 3101, and 3102 and use isolated temporary recording locations. Core tests launch real processes and inspect real files, including an independently calculated float32 reference value. Test artifacts and recordings are excluded from Git.
+On Linux, use `npx playwright install --with-deps chromium` when system browser dependencies are absent. Browser tests start their own production servers on ports 3100, 3101, 3102, and 3104 and use isolated temporary recording locations. Core tests launch real processes and inspect real files, including an independently calculated float32 reference value. Test artifacts and recordings are excluded from Git.
 
-The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md) , [T02 configuration evidence](docs/evidence/t02/README.md), and [T03 library evidence](docs/evidence/t03/README.md) distinguish completed local checks from the later sustained-performance work.
+The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md) , [T02 configuration evidence](docs/evidence/t02/README.md), [T03 library evidence](docs/evidence/t03/README.md), and [T04 failure evidence](docs/evidence/t04/README.md) distinguish completed local checks from the later sustained-performance work.
 
 ## Phase boundary
 
-The implemented phases include configurable acquisition and inspection of its saved result. Live traces, verification UI, CSV export, playback controls, comprehensive overload/fault experiments, one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity PASS is fabricated in the interface.
+The implemented phases include configurable acquisition and inspection of its saved result. Live traces, verification UI, CSV export, playback controls, comprehensive overload experiments, one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity PASS is fabricated in the interface.
 
 ## Agreed direction
 

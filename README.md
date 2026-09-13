@@ -161,9 +161,10 @@ failed session to paused position zero; Play at end never loops.
 
 The detail view reports the next original frame, frame and scalar-sample counts, active elapsed
 time, current and maximum lag, and skipped adjacent duplicates. Missing indices consume their
-original timeline interval instead of compressing time. The Canvas trace contains only a bounded
-decimated view of accepted stored observations; full batches stay in the playback sink and are never
-sent through browser state.
+original timeline interval instead of compressing time. A client-only uPlot Canvas trace shows the
+bounded decimated view with original-frame and elapsed-time axes, normalized amplitude, cursor
+values, visible gap breaks, and textual channel/window context. Full batches stay in the playback
+sink and are never sent through browser state.
 
 ```sh
 # Measure native playback without materializing output.
@@ -177,7 +178,9 @@ Playback accepts completed recordings with a confirmed expected extent, includin
 declare loss. It does not require an integrity PASS. Each full-data batch is awaited before position
 is committed, is capped at 256 frames and approximately 64 KiB, and each scheduler turn examines at
 most 4,096 physical observations. The browser preview retains at most 256 decimated points from the
-first four channels. Pause, seek, speed changes, and channel selection belong to T11.
+first four channels. uPlot is loaded only with the recording-detail chart and updates that bounded
+data through one retained chart instance. Pause, seek, speed changes, and channel selection belong
+to T11.
 
 ## Verify a recording
 

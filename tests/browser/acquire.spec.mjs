@@ -10,7 +10,11 @@ test('capture, reload, stop, and inspect a real recording', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Start acquisition' })).toBeEnabled();
   await page.getByRole('button', { name: 'Start acquisition' }).click();
   await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
-  await expect.poll(async () => Number((await page.getByTestId('recorded-samples').innerText()).replaceAll(',', ''))).toBeGreaterThan(0);
+  await expect
+    .poll(async () =>
+      Number((await page.getByTestId('recorded-samples').innerText()).replaceAll(',', '')),
+    )
+    .toBeGreaterThan(0);
   const id = await page.getByTestId('recording-id').innerText();
   await page.reload();
   await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
@@ -22,21 +26,36 @@ test('capture, reload, stop, and inspect a real recording', async ({ page }) => 
   await page.getByRole('button', { name: 'Inspect recording' }).click();
   await expect(page.getByRole('heading', { name: 'Recording details' })).toBeVisible();
   await expect(page.getByTestId('format')).toHaveText('SCOPE/1');
-  await expect(page.getByTestId('expected-frames')).toHaveText(await page.getByTestId('saved-frames').innerText());
+  await expect(page.getByTestId('expected-frames')).toHaveText(
+    await page.getByTestId('saved-frames').innerText(),
+  );
 });
 
 test('a startup failure is visible and leaves the controls recoverable', async ({ page }) => {
   const root = await mkdtemp(join(tmpdir(), 'scope-browser-failure-'));
   const blockedRoot = join(root, 'not-a-directory');
   await writeFile(blockedRoot, 'This fixture prevents recording-directory creation.');
-  const server = spawn(process.execPath, ['server.ts'], { env: { ...process.env, PORT: '3101', SCOPE_RECORDINGS_DIR: blockedRoot }, stdio: 'ignore' });
+  const server = spawn(process.execPath, ['server.ts'], {
+    env: { ...process.env, PORT: '3101', SCOPE_RECORDINGS_DIR: blockedRoot },
+    stdio: 'ignore',
+  });
   const closed = once(server, 'close');
   try {
-    await expect.poll(async () => { try { return (await fetch('http://127.0.0.1:3101/api/state')).status; } catch { return 0; } }).toBe(200);
+    await expect
+      .poll(async () => {
+        try {
+          return (await fetch('http://127.0.0.1:3101/api/state')).status;
+        } catch {
+          return 0;
+        }
+      })
+      .toBe(200);
     await page.goto('http://127.0.0.1:3101');
     await page.getByRole('button', { name: 'Start acquisition' }).click();
     await expect(page.getByTestId('acquisition-state')).toHaveText('Failed');
-    await expect(page.getByRole('alert').filter({ hasText: 'Acquisition notice' })).toContainText(/ENOTDIR|EEXIST/);
+    await expect(page.getByRole('alert').filter({ hasText: 'Acquisition notice' })).toContainText(
+      /ENOTDIR|EEXIST/,
+    );
     await expect(page.getByRole('button', { name: 'Start acquisition' })).toBeEnabled();
     await expect(page.getByRole('heading', { name: 'Recording saved' })).toHaveCount(0);
   } finally {
@@ -46,22 +65,37 @@ test('a startup failure is visible and leaves the controls recoverable', async (
   }
 });
 
-test('concurrent starts and rapid repeated stops preserve a single acquisition', async ({ page }) => {
+test('concurrent starts and rapid repeated stops preserve a single acquisition', async ({
+  page,
+}) => {
   await page.goto('/');
-  const starts = await page.evaluate(async () => Promise.all([1, 2].map(async () => {
-    const response = await fetch('/api/acquisitions', { method: 'POST' });
-    return { status: response.status, body: await response.json() };
-  })));
-  expect(starts.map(r => r.status).sort()).toEqual([202, 409]);
-  const id = starts.find(r => r.status === 202).body.id;
-  const stops = await page.evaluate(async id => Promise.all([1, 2].map(async () => {
-    const response = await fetch(`/api/acquisitions/${id}/stop`, { method: 'POST' });
-    return response.status;
-  })), id);
+  const starts = await page.evaluate(async () =>
+    Promise.all(
+      [1, 2].map(async () => {
+        const response = await fetch('/api/acquisitions', { method: 'POST' });
+        return { status: response.status, body: await response.json() };
+      }),
+    ),
+  );
+  expect(starts.map((r) => r.status).sort()).toEqual([202, 409]);
+  const id = starts.find((r) => r.status === 202).body.id;
+  const stops = await page.evaluate(
+    async (id) =>
+      Promise.all(
+        [1, 2].map(async () => {
+          const response = await fetch(`/api/acquisitions/${id}/stop`, { method: 'POST' });
+          return response.status;
+        }),
+      ),
+    id,
+  );
   expect(stops).toEqual([202, 202]);
   await expect(page.getByTestId('recording-id')).toHaveText(id);
   await expect(page.getByTestId('acquisition-state')).toHaveText('Completed');
-  const metadata = await page.evaluate(async id => (await fetch(`/api/acquisitions/${id}`)).json(), id);
+  const metadata = await page.evaluate(
+    async (id) => (await fetch(`/api/acquisitions/${id}`)).json(),
+    id,
+  );
   expect(metadata.recordedFrames).toBe(metadata.expectedFrames);
   expect(metadata.trailingBytes).toBe(0);
 });
@@ -86,11 +120,19 @@ test('mobile capture controls remain in reach and work with the keyboard', async
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
-test('Stop times out a suspended recorder, preserves its prefix, and releases ownership', async ({ page, request }) => {
+test('Stop times out a suspended recorder, preserves its prefix, and releases ownership', async ({
+  page,
+  request,
+}) => {
   const started = await request.post('/api/acquisitions');
   const { id } = await started.json();
   let state;
-  await expect.poll(async () => { state = await (await request.get('/api/state')).json(); return state.status; }).toBe('recording');
+  await expect
+    .poll(async () => {
+      state = await (await request.get('/api/state')).json();
+      return state.status;
+    })
+    .toBe('recording');
   const pids = state.metadata.processes;
   try {
     process.kill(pids.recorder, 'SIGSTOP');
@@ -100,15 +142,32 @@ test('Stop times out a suspended recorder, preserves its prefix, and releases ow
     await page.goto('/');
     await expect(page.getByTestId('acquisition-state')).toHaveText('Stopping');
     await expect(page.getByTestId('acquisition-state')).toHaveText('Failed', { timeout: 12000 });
-    await expect(page.getByRole('alert').filter({ hasText: 'Acquisition notice' })).toContainText('10-second');
+    await expect(page.getByRole('alert').filter({ hasText: 'Acquisition notice' })).toContainText(
+      '10-second',
+    );
     await expect(page.getByRole('button', { name: 'Start acquisition' })).toBeEnabled();
     const saved = await (await request.get(`/api/acquisitions/${id}`)).json();
     expect(saved.status).toBe('failed');
     expect(saved.expectedFrames).toBeNull();
     expect(saved.warnings.join(' ')).toContain('completeness are unknown');
-    await expect.poll(() => Object.values(pids).every(pid => { try { process.kill(pid, 0); return false; } catch { return true; } })).toBe(true);
+    await expect
+      .poll(() =>
+        Object.values(pids).every((pid) => {
+          try {
+            process.kill(pid, 0);
+            return false;
+          } catch {
+            return true;
+          }
+        }),
+      )
+      .toBe(true);
   } finally {
-    for (const pid of Object.values(pids)) { try { process.kill(pid, 'SIGKILL'); } catch {} }
+    for (const pid of Object.values(pids)) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+    }
   }
 });
 
@@ -123,15 +182,25 @@ test('timed capture stays stopping while accepted writes drain', async ({ page, 
   expect(state.metadata.recordedFrames).toBe(400);
 });
 
-test('a failed capture retains its actionable cause in saved inspection', async ({ page, request }) => {
+test('a failed capture retains its actionable cause in saved inspection', async ({
+  page,
+  request,
+}) => {
   const { id } = await (await request.post('/api/acquisitions')).json();
   let state;
-  await expect.poll(async () => { state = await (await request.get('/api/state')).json(); return state.metrics?.recordedFrames || 0; }).toBeGreaterThan(0);
+  await expect
+    .poll(async () => {
+      state = await (await request.get('/api/state')).json();
+      return state.metrics?.recordedFrames || 0;
+    })
+    .toBeGreaterThan(0);
   process.kill(state.metadata.processes.generator, 'SIGKILL');
   await page.goto('/');
   await expect(page.getByTestId('acquisition-state')).toHaveText('Failed');
   await page.goto(`/recordings?id=${id}`);
-  await expect(page.getByTestId('inspection-failure')).toContainText('Generator exited unexpectedly');
+  await expect(page.getByTestId('inspection-failure')).toContainText(
+    'Generator exited unexpectedly',
+  );
   await expect(page.getByTestId('recording-duration')).toHaveText('Unknown');
   await expect(page.getByText('Integrity not verified', { exact: true })).toBeVisible();
 });
@@ -139,13 +208,33 @@ test('a failed capture retains its actionable cause in saved inspection', async 
 test('application SIGTERM drains an active capture and closes both children', async () => {
   const root = await mkdtemp(join(tmpdir(), 'scope-server-stop-'));
   const base = 'http://127.0.0.1:3104';
-  const server = spawn(process.execPath, ['server.ts'], { env: { ...process.env, PORT: '3104', SCOPE_RECORDINGS_DIR: root }, stdio: 'ignore' });
+  const server = spawn(process.execPath, ['server.ts'], {
+    env: { ...process.env, PORT: '3104', SCOPE_RECORDINGS_DIR: root },
+    stdio: 'ignore',
+  });
   const closed = once(server, 'close');
   let state;
   try {
-    await expect.poll(async () => { try { return (await fetch(`${base}/api/state`)).status; } catch { return 0; } }).toBe(200);
-    await fetch(`${base}/api/acquisitions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ channels: 1, sampleRate: 20, writeDelayMs: 100 }) });
-    await expect.poll(async () => { state = await (await fetch(`${base}/api/state`)).json(); return state.metrics?.recordedFrames || 0; }).toBeGreaterThan(0);
+    await expect
+      .poll(async () => {
+        try {
+          return (await fetch(`${base}/api/state`)).status;
+        } catch {
+          return 0;
+        }
+      })
+      .toBe(200);
+    await fetch(`${base}/api/acquisitions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ channels: 1, sampleRate: 20, writeDelayMs: 100 }),
+    });
+    await expect
+      .poll(async () => {
+        state = await (await fetch(`${base}/api/state`)).json();
+        return state.metrics?.recordedFrames || 0;
+      })
+      .toBeGreaterThan(0);
     server.kill('SIGTERM');
     server.kill('SIGTERM');
     expect((await closed)[0]).toBe(0);
@@ -156,7 +245,11 @@ test('application SIGTERM drains an active capture and closes both children', as
     for (const pid of Object.values(saved.processes)) expect(() => process.kill(pid, 0)).toThrow();
   } finally {
     if (server.exitCode === null && server.signalCode === null) server.kill('SIGKILL');
-    for (const pid of Object.values(state?.metadata?.processes || {})) { try { process.kill(pid, 'SIGKILL'); } catch {} }
+    for (const pid of Object.values(state?.metadata?.processes || {})) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+    }
     await closed;
     await rm(root, { recursive: true, force: true });
   }

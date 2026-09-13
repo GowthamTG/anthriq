@@ -50,8 +50,14 @@ export interface RecordingMetadata extends Settings {
   diagnostic?: DiagnosticProvenance;
   error?: string;
 }
-export const DIAGNOSTIC_SCENARIOS = ['clean', 'missing', 'duplicate', 'incorrect', 'combined'] as const;
-export type DiagnosticScenario = typeof DIAGNOSTIC_SCENARIOS[number];
+export const DIAGNOSTIC_SCENARIOS = [
+  'clean',
+  'missing',
+  'duplicate',
+  'incorrect',
+  'combined',
+] as const;
+export type DiagnosticScenario = (typeof DIAGNOSTIC_SCENARIOS)[number];
 export interface DiagnosticProvenance {
   format: 'SCOPE-DIAGNOSTIC/1';
   scenario: DiagnosticScenario;
@@ -69,7 +75,12 @@ export interface RecordingInspection extends RecordingMetadata {
   location?: string;
 }
 export type VerificationStatus = 'unverified' | 'verified' | 'integrity-failed' | 'stale';
-export interface FileIdentity { dev: string; ino: string; size: number; mtimeNs: string }
+export interface FileIdentity {
+  dev: string;
+  ino: string;
+  size: number;
+  mtimeNs: string;
+}
 export interface VerificationProgress {
   recordsScanned: number;
   totalRecords: number | null;
@@ -79,9 +90,17 @@ export interface VerificationProgress {
   elapsedMs: number;
   rssBytes: number;
 }
-export interface VerificationPosition { frame: number; channel: number }
-export interface DuplicatePosition extends VerificationPosition { physicalOrdinal: number }
-export interface IncorrectPosition extends DuplicatePosition { expected: number; actual: number | string }
+export interface VerificationPosition {
+  frame: number;
+  channel: number;
+}
+export interface DuplicatePosition extends VerificationPosition {
+  physicalOrdinal: number;
+}
+export interface IncorrectPosition extends DuplicatePosition {
+  expected: number;
+  actual: number | string;
+}
 export interface VerificationReport {
   format: 'SCOPE-VERIFICATION/1';
   recordingId: string;
@@ -108,7 +127,8 @@ export interface VerificationSummary {
   checkedAt?: string;
   result?: VerificationReport['result'];
 }
-export type VerificationJobStatus = 'idle' | 'creating' | 'running' | 'passed' | 'failed-integrity' | 'failed-operational';
+export type VerificationJobStatus =
+  'idle' | 'creating' | 'running' | 'passed' | 'failed-integrity' | 'failed-operational';
 export interface VerificationState {
   status: VerificationJobStatus;
   recordingId: string | null;
@@ -124,7 +144,10 @@ export type VerificationWorkerMessage =
   | { type: 'progress'; progress: VerificationProgress }
   | { type: 'report'; report: VerificationReport }
   | { type: 'error'; error: string };
-export interface Frame { index: number; values: number[] }
+export interface Frame {
+  index: number;
+  values: number[];
+}
 export interface RangeQuery {
   channels?: number[];
   start?: number;
@@ -164,7 +187,8 @@ export interface AcquisitionMetrics {
   elapsedSeconds: number;
   generator: Partial<GeneratorMetrics>;
 }
-export type AcquisitionStatus = 'idle' | 'starting' | 'recording' | 'stopping' | 'completed' | 'failed';
+export type AcquisitionStatus =
+  'idle' | 'starting' | 'recording' | 'stopping' | 'completed' | 'failed';
 export interface AcquisitionState {
   status: AcquisitionStatus;
   id: string | null;
@@ -173,9 +197,17 @@ export interface AcquisitionState {
   metadata: RecordingMetadata | null;
   error: string | null;
 }
-export type GeneratorCommand = { type: 'start' | 'stop' | 'finish' | 'status-ack' } | { type: 'credit'; bytes: number };
+export type GeneratorCommand =
+  { type: 'start' | 'stop' | 'finish' | 'status-ack' } | { type: 'credit'; bytes: number };
 export type Batch = { type: 'batch'; start: number; count: number; buffer: Buffer };
 export type SourceDone = { type: 'done'; expectedFrames: number; generator: GeneratorMetrics };
-export type GeneratorMessage = Batch | SourceDone | { type: 'started'; timestamp: string } | { type: 'status'; generator: GeneratorMetrics };
+export type GeneratorMessage =
+  | Batch
+  | SourceDone
+  | { type: 'started'; timestamp: string }
+  | { type: 'status'; generator: GeneratorMetrics };
 export type RecorderCommand = { type: 'stop' | 'status-ack' };
-export type RecorderMessage = { type: 'started' | 'stopping' | 'completed'; metadata: RecordingMetadata } | { type: 'error'; error: string } | ({ type: 'status'; preview: Frame[] } & AcquisitionMetrics);
+export type RecorderMessage =
+  | { type: 'started' | 'stopping' | 'completed'; metadata: RecordingMetadata }
+  | { type: 'error'; error: string }
+  | ({ type: 'status'; preview: Frame[] } & AcquisitionMetrics);

@@ -15,7 +15,7 @@ async function fixture(t) {
   return { root, directory };
 }
 
-test('inspection exposes a truncated prefix and never presents it as a sound finalized recording', async t => {
+test('inspection exposes a truncated prefix and never presents it as a sound finalized recording', async (t) => {
   const { directory } = await fixture(t);
   await truncate(join(directory, 'frames.bin'), 3 * 136 + 5);
   const result = JSON.parse((await cli('inspect', directory)).stdout);
@@ -27,7 +27,7 @@ test('inspection exposes a truncated prefix and never presents it as a sound fin
   assert.match(result.warnings.join(' '), /count/i);
 });
 
-test('unconfirmed extent keeps duration unknown even when the metadata has a stale duration', async t => {
+test('unconfirmed extent keeps duration unknown even when the metadata has a stale duration', async (t) => {
   const { directory } = await fixture(t);
   const path = join(directory, 'metadata.json');
   const metadata = JSON.parse(await readFile(path, 'utf8'));
@@ -41,17 +41,28 @@ test('unconfirmed extent keeps duration unknown even when the metadata has a sta
   assert.equal(result.completeRecords, 40);
 });
 
-test('inspection rejects invalid metadata types, versions, layouts, and unsafe counts before interpreting data', async t => {
+test('inspection rejects invalid metadata types, versions, layouts, and unsafe counts before interpreting data', async (t) => {
   const { directory } = await fixture(t);
   const path = join(directory, 'metadata.json');
   const original = JSON.parse(await readFile(path, 'utf8'));
-  for (const update of [{ format: 'SCOPE/99' }, { sampleRate: 1.5 }, { sampleType: 'float64' }, { byteOrder: 'big-endian' }, { recordBytes: 128 }, { totalSamples: '1280' }, { expectedFrames: -1 }, { recordedFrames: 1e20 }, { startedAt: 'yesterday' }, { status: ['completed'] }]) {
+  for (const update of [
+    { format: 'SCOPE/99' },
+    { sampleRate: 1.5 },
+    { sampleType: 'float64' },
+    { byteOrder: 'big-endian' },
+    { recordBytes: 128 },
+    { totalSamples: '1280' },
+    { expectedFrames: -1 },
+    { recordedFrames: 1e20 },
+    { startedAt: 'yesterday' },
+    { status: ['completed'] },
+  ]) {
     await writeFile(path, JSON.stringify({ ...original, ...update }));
     await assert.rejects(cli('inspect', directory), { code: 1 });
   }
 });
 
-test('the CLI library is empty when absent and pages saved bundles without losing malformed entries', async t => {
+test('the CLI library is empty when absent and pages saved bundles without losing malformed entries', async (t) => {
   const { root, directory } = await fixture(t);
   const empty = JSON.parse((await cli('list', join(root, 'absent'), '--limit', '1')).stdout);
   assert.deepEqual(empty, { items: [], nextCursor: null });
@@ -62,13 +73,15 @@ test('the CLI library is empty when absent and pages saved bundles without losin
   assert.equal(first.items[0].id, 'fixture');
   assert.match(first.items[0].error, /Invalid metadata JSON/);
   assert.equal(first.nextCursor, 'fixture');
-  const second = JSON.parse((await cli('list', root, '--limit', '1', '--cursor', first.nextCursor)).stdout);
+  const second = JSON.parse(
+    (await cli('list', root, '--limit', '1', '--cursor', first.nextCursor)).stdout,
+  );
   assert.equal(second.items[0].id, 'second');
   assert.equal(second.items[0].recording.condition, 'finalized');
   assert.equal(second.nextCursor, null);
 });
 
-test('contradictory counts remain inspectable with warnings, and oversized metadata is rejected', async t => {
+test('contradictory counts remain inspectable with warnings, and oversized metadata is rejected', async (t) => {
   const { directory } = await fixture(t);
   const path = join(directory, 'metadata.json');
   const metadata = JSON.parse(await readFile(path, 'utf8'));
@@ -78,5 +91,8 @@ test('contradictory counts remain inspectable with warnings, and oversized metad
   assert.match(result.warnings.join(' '), /scalar count/);
   assert.match(result.warnings.join(' '), /duration/);
   await writeFile(path, JSON.stringify({ ...metadata, padding: 'x'.repeat(70000) }));
-  await assert.rejects(cli('inspect', directory), error => { assert.match(error.stderr, /64 KiB/); return true; });
+  await assert.rejects(cli('inspect', directory), (error) => {
+    assert.match(error.stderr, /64 KiB/);
+    return true;
+  });
 });

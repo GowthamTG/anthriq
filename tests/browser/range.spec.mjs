@@ -10,18 +10,58 @@ const base = 'http://127.0.0.1:3105';
 let root, server, closed, id;
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'scope-range-browser-')); id = 'range-fixture';
-  await execute(process.execPath, ['core/cli.ts', 'record', join(root, id), '--channels', '4', '--sample-rate', '100', '--seconds', '0.1']);
-  server = spawn(process.execPath, ['server.ts'], { env: { ...process.env, PORT: '3105', SCOPE_RECORDINGS_DIR: root }, stdio: 'ignore' }); closed = once(server, 'close');
-  await expect.poll(async () => { try { return (await fetch(`${base}/api/state`)).status; } catch { return 0; } }).toBe(200);
+  root = await mkdtemp(join(tmpdir(), 'scope-range-browser-'));
+  id = 'range-fixture';
+  await execute(process.execPath, [
+    'core/cli.ts',
+    'record',
+    join(root, id),
+    '--channels',
+    '4',
+    '--sample-rate',
+    '100',
+    '--seconds',
+    '0.1',
+  ]);
+  server = spawn(process.execPath, ['server.ts'], {
+    env: { ...process.env, PORT: '3105', SCOPE_RECORDINGS_DIR: root },
+    stdio: 'ignore',
+  });
+  closed = once(server, 'close');
+  await expect
+    .poll(async () => {
+      try {
+        return (await fetch(`${base}/api/state`)).status;
+      } catch {
+        return 0;
+      }
+    })
+    .toBe(200);
 });
-test.afterAll(async () => { server?.kill('SIGTERM'); await closed; await rm(root, { recursive: true, force: true }); });
+test.afterAll(async () => {
+  server?.kill('SIGTERM');
+  await closed;
+  await rm(root, { recursive: true, force: true });
+});
 
-test('range API streams raw JSON-lines and the detail view shows an ordered bounded window', async ({ page, request }) => {
-  const stream = await request.get(`${base}/api/recordings/${id}/retrieve?start=2&end=5&channels=3,1`);
+test('range API streams raw JSON-lines and the detail view shows an ordered bounded window', async ({
+  page,
+  request,
+}) => {
+  const stream = await request.get(
+    `${base}/api/recordings/${id}/retrieve?start=2&end=5&channels=3,1`,
+  );
   expect(stream.status()).toBe(200);
-  expect((await stream.text()).trim().split('\n').map(JSON.parse).map(frame => frame.index)).toEqual([2, 3, 4]);
-  const bad = await request.get(`${base}/api/recordings/${id}/range-preview?start=1&startSeconds=0.1`);
+  expect(
+    (await stream.text())
+      .trim()
+      .split('\n')
+      .map(JSON.parse)
+      .map((frame) => frame.index),
+  ).toEqual([2, 3, 4]);
+  const bad = await request.get(
+    `${base}/api/recordings/${id}/range-preview?start=1&startSeconds=0.1`,
+  );
   expect(bad.status()).toBe(400);
   const badChannels = await request.get(`${base}/api/recordings/${id}/retrieve?channels=1,`);
   expect(badChannels.status()).toBe(400);
@@ -38,7 +78,11 @@ test('range API streams raw JSON-lines and the detail view shows an ordered boun
   await page.getByRole('link', { name: 'Download CSV' }).click();
   const file = await download;
   expect(file.suggestedFilename()).toBe(`${id}-selection.csv`);
-  const csv = await file.createReadStream().then(async stream => { let value = ''; for await (const chunk of stream) value += chunk; return value; });
+  const csv = await file.createReadStream().then(async (stream) => {
+    let value = '';
+    for await (const chunk of stream) value += chunk;
+    return value;
+  });
   expect(csv).toContain('original_frame_index,time_seconds,channel_3,channel_1');
   expect(csv).toMatch(/^2,0\.02,/m);
   await page.getByLabel('Range end').fill('4');

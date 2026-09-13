@@ -1,8 +1,13 @@
-import type { VerificationProgress, VerificationWorkerCommand, VerificationWorkerMessage } from './contracts.ts';
+import type {
+  VerificationProgress,
+  VerificationWorkerCommand,
+  VerificationWorkerMessage,
+} from './contracts.ts';
 import { verifyRecording } from './verify.ts';
 
 const directory = process.argv[2];
-if (!directory || !process.send) throw new Error('Verification worker requires a recording directory and IPC');
+if (!directory || !process.send)
+  throw new Error('Verification worker requires a recording directory and IPC');
 
 let awaitingProgressAck = false;
 let pendingProgress: VerificationProgress | null = null;
@@ -14,7 +19,10 @@ function send(message: VerificationWorkerMessage, callback?: () => void) {
 }
 
 function sendProgress(progress: VerificationProgress) {
-  if (awaitingProgressAck) { pendingProgress = progress; return; }
+  if (awaitingProgressAck) {
+    pendingProgress = progress;
+    return;
+  }
   awaitingProgressAck = true;
   send({ type: 'progress', progress });
 }
@@ -33,5 +41,7 @@ try {
   const report = await verifyRecording(directory, { onProgress: sendProgress });
   send({ type: 'report', report }, () => process.disconnect());
 } catch (error) {
-  send({ type: 'error', error: error instanceof Error ? error.message : String(error) }, () => process.disconnect());
+  send({ type: 'error', error: error instanceof Error ? error.message : String(error) }, () =>
+    process.disconnect(),
+  );
 }

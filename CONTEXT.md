@@ -24,6 +24,9 @@ A run in which a signal is generated at its configured real-world rate and recor
 **Recording**:
 The retained signal data and the associated information needed to interpret it independently.
 
+**Diagnostic recording**:
+A disposable recording created separately from an acquisition to demonstrate a known integrity condition. It may reuse an acquisition's signal definition but never changes that source recording.
+
 **Playback**:
 The timed emission of previously recorded samples, with a current position and a configurable speed relative to the original sample rate.
 

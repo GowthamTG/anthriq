@@ -7,6 +7,7 @@ import { inspect } from './core/storage.ts';
 import { listRecordings, recordingId } from './core/library.ts';
 import { config, ConfigurationError } from './core/config.ts';
 import { Verification } from './core/verification.ts';
+import { DIAGNOSTIC_SCENARIOS, type DiagnosticScenario } from './core/contracts.ts';
 
 const dev = process.argv.includes('--dev');
 const port = Number(process.env.PORT || 3000);
@@ -89,6 +90,15 @@ const server = createServer(async (req, res) => {
         return json(res, 400, { error: 'Provide only a recordingId' });
       }
       return json(res, 202, await verification.start((body as { recordingId: string }).recordingId));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/verification-scenarios') {
+      const body = await readJson(req);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) return json(res, 400, { error: 'Provide only a sourceRecordingId and scenario' });
+      const input = body as Record<string, unknown>;
+      if (typeof input.sourceRecordingId !== 'string' || typeof input.scenario !== 'string' || !DIAGNOSTIC_SCENARIOS.includes(input.scenario as DiagnosticScenario) || Object.keys(input).some(key => !['sourceRecordingId', 'scenario'].includes(key))) {
+        return json(res, 400, { error: 'Provide only a sourceRecordingId and a supported scenario' });
+      }
+      return json(res, 202, await verification.startDiagnostic(input.sourceRecordingId, input.scenario as DiagnosticScenario));
     }
     if (req.method === 'GET' && url.pathname === '/api/recordings') {
       for (const key of url.searchParams.keys()) if (!['limit', 'cursor'].includes(key)) return json(res, 400, { error: `Unknown query parameter: ${key}` });

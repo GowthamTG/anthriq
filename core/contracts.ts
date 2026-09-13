@@ -47,7 +47,16 @@ export interface RecordingMetadata extends Settings {
   peakQueueBytes?: number;
   recorderPeakRssBytes?: number;
   recorderStall?: RecorderStall;
+  diagnostic?: DiagnosticProvenance;
   error?: string;
+}
+export const DIAGNOSTIC_SCENARIOS = ['clean', 'missing', 'duplicate', 'incorrect', 'combined'] as const;
+export type DiagnosticScenario = typeof DIAGNOSTIC_SCENARIOS[number];
+export interface DiagnosticProvenance {
+  format: 'SCOPE-DIAGNOSTIC/1';
+  scenario: DiagnosticScenario;
+  sourceRecordingId: string;
+  createdAt: string;
 }
 export interface RecordingInspection extends RecordingMetadata {
   fileBytes: number;
@@ -99,10 +108,12 @@ export interface VerificationSummary {
   checkedAt?: string;
   result?: VerificationReport['result'];
 }
-export type VerificationJobStatus = 'idle' | 'running' | 'passed' | 'failed-integrity' | 'failed-operational';
+export type VerificationJobStatus = 'idle' | 'creating' | 'running' | 'passed' | 'failed-integrity' | 'failed-operational';
 export interface VerificationState {
   status: VerificationJobStatus;
   recordingId: string | null;
+  scenario: DiagnosticScenario | null;
+  sourceRecordingId: string | null;
   workerPid: number | null;
   progress: VerificationProgress | null;
   report: VerificationReport | null;

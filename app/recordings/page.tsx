@@ -75,6 +75,7 @@ export default function Recordings() {
             <span className="block break-words text-sm font-semibold">{entry.recording?.displayName || entry.id}</span>
             <span className="mt-2 block break-all font-mono text-[10px] text-muted">{entry.id}</span>
             <span className="mt-3 block text-xs text-muted">{entry.recording ? `${entry.recording.channels} channels · ${entry.recording.sampleRate.toLocaleString('en-US')} Hz · ${entry.recording.condition}` : 'Unreadable metadata'}</span>
+            {entry.recording?.diagnostic && <span className="mt-2 block font-mono text-[9px] uppercase tracking-[.08em] text-[#e4d6ad]">Diagnostic / {entry.recording.diagnostic.scenario}</span>}
           </button>)}
           <div className="flex justify-between gap-3 p-4">
             <button className="text-xs text-muted" disabled={!cursor || loading} onClick={() => setCursor('')}>First page</button>

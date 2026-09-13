@@ -13,6 +13,7 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
           </span>
           {details.status === 'completed' && <a className="ml-auto border border-[#78826e] px-3 py-2 text-[10px] text-white hover:bg-[#2e3429]" href={`/verify?id=${encodeURIComponent(details.id)}`}>Verify recording ↗</a>}
         </div>
+        {details.diagnostic && <div data-testid="diagnostic-recording" className="mt-5 border border-[#7a6c42] bg-[#25231a] p-4 text-xs leading-relaxed text-[#e4d6ad]"><span className="micro">DISPOSABLE DIAGNOSTIC / {details.diagnostic.scenario.toUpperCase()}</span><p className="mt-2">Generated separately from the signal definition of <code>{details.diagnostic.sourceRecordingId}</code>. It is not an acquisition and does not alter or repair its source recording.</p></div>}
         {typeof details.error === 'string' && <div data-testid="inspection-failure" role="alert" className="mt-5 border border-[#805a47] bg-[#2a211c] p-4 text-sm leading-relaxed text-[#ffba89]">
           <p className="mb-1 font-semibold">Acquisition failed</p><p className="break-words">{details.error}</p>
           <p className="mt-2 text-xs">The complete frames below remain readable. This recording has not passed integrity verification.</p>

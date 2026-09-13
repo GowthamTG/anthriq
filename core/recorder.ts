@@ -2,7 +2,7 @@ import type {
   RecordingMetadata,
   RecorderStall,
   GeneratorMetrics,
-  Frame,
+  LivePreview,
   Batch,
   SourceDone,
   GeneratorMessage,
@@ -66,9 +66,10 @@ let recorded = 0,
   statusPending = false,
   metricsBusy = false;
 let generatorMetrics: Partial<GeneratorMetrics> = {},
-  preview: Frame[] = [],
-  lastPreview = 0,
   lastMeasurement = 0;
+const previews = new Map<string, { channels: number[]; buckets: LivePreview['buckets'] }>();
+const previewCapacity = 256;
+const previewBucketFrames = Math.max(1, Math.ceil((settings.sampleRate * 2) / previewCapacity));
 let sourceStarted: number | undefined;
 let recorderStall: RecorderStall = settings.stallForMs ? 'scheduled' : 'off';
 const started = performance.now();
@@ -90,7 +91,12 @@ const stats = (): Extract<RecorderMessage, { type: 'status' }> => ({
   recorderRssBytes: process.memoryUsage().rss,
   elapsedSeconds: generatorMetrics.elapsedSeconds || (performance.now() - started) / 1000,
   generator: generatorMetrics,
-  preview,
+  previews: Object.fromEntries(
+    [...previews].map(([clientId, preview]) => [
+      clientId,
+      { ...preview, bucketFrames: previewBucketFrames, capacity: previewCapacity },
+    ]),
+  ),
 });
 const send = (message: RecorderMessage) => {
   if (process.connected)
@@ -161,17 +167,29 @@ async function drain() {
       queueBytes -= batch.buffer.length;
       pendingCreditBytes += batch.buffer.length;
       flushCredits();
-      if (performance.now() - lastPreview > 100) {
-        lastPreview = performance.now();
-        const step = Math.max(1, Math.floor(batch.count / 80));
-        preview = [];
-        for (let i = 0; i < batch.count; i += step)
-          preview.push({
-            index: batch.start + i,
-            values: Array.from({ length: settings.channels }, (_, c) =>
-              batch.buffer.readFloatLE(i * metadata.recordBytes + 8 + c * 4),
-            ),
-          });
+      for (let i = 0; i < batch.count; i++) {
+        const index = batch.start + i;
+        const start = Math.floor(index / previewBucketFrames) * previewBucketFrames;
+        for (const preview of previews.values()) {
+          let bucket = preview.buckets.at(-1);
+          const values = preview.channels.map((channel) =>
+            batch.buffer.readFloatLE(i * metadata.recordBytes + 8 + channel * 4),
+          );
+          if (!bucket || bucket.start !== start) {
+            bucket = {
+              start,
+              end: index + 1,
+              minimum: [...values],
+              maximum: [...values],
+            };
+            preview.buckets = [...preview.buckets, bucket].slice(-previewCapacity);
+          } else
+            values.forEach((value, channel) => {
+              bucket!.minimum[channel] = Math.min(bucket!.minimum[channel], value);
+              bucket!.maximum[channel] = Math.max(bucket!.maximum[channel], value);
+            });
+          bucket.end = index + 1;
+        }
       }
     }
     if (finalMessage) await finish();
@@ -205,7 +223,7 @@ async function finish() {
   while (metricsBusy) await new Promise((r) => setTimeout(r, 5));
   await writeAll(
     measurements,
-    Buffer.from(JSON.stringify({ ...stats(), preview: undefined, final: true }) + '\n'),
+    Buffer.from(JSON.stringify({ ...stats(), previews: undefined, final: true }) + '\n'),
   );
   await measurements.close();
   if (generator.connected)
@@ -298,6 +316,11 @@ generator.on('exit', (code, signal) => {
 process.on('message', (message: RecorderCommand) => {
   if (message.type === 'stop') requestStop();
   else if (message.type === 'status-ack') statusPending = false;
+  else if (message.type === 'preview-subscription') {
+    if (message.channels)
+      previews.set(message.clientId, { channels: message.channels, buckets: [] });
+    else previews.delete(message.clientId);
+  }
 });
 process.on('SIGINT', requestStop);
 process.on('SIGTERM', requestStop);
@@ -310,7 +333,7 @@ const statusTimer = setInterval(() => {
   if (!metricsBusy && performance.now() - lastMeasurement >= 1000) {
     lastMeasurement = performance.now();
     metricsBusy = true;
-    writeAll(measurements, Buffer.from(JSON.stringify({ ...stats(), preview: undefined }) + '\n'))
+    writeAll(measurements, Buffer.from(JSON.stringify({ ...stats(), previews: undefined }) + '\n'))
       .catch(fail)
       .finally(() => {
         metricsBusy = false;

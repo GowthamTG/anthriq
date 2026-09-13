@@ -1,11 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import type { AcquisitionState, RecordingInspection } from '../core/contracts';
 import { OverloadTelemetry } from './overload-telemetry';
 import { RecordingDetails } from './recording-details';
 import { config } from '../core/config';
 import { ConfigurationForm, draftFrom, type ConfigurationDraft } from './configuration-form';
+const SignalTrace = dynamic(() => import('./signal-trace').then((module) => module.SignalTrace), {
+  ssr: false,
+});
 
 const names = {
   idle: 'Ready',
@@ -40,28 +44,115 @@ function clock(value: number | null | undefined) {
 
 export default function Acquire() {
   const [state, setState] = useState<AcquisitionState | null>(null);
-  const [connected, setConnected] = useState(false);
+  const [connection, setConnection] = useState<'connecting' | 'live' | 'reconnecting' | 'offline'>(
+    'connecting',
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<RecordingInspection | null>(null);
   const [inspecting, setInspecting] = useState(false);
   const [draft, setDraft] = useState(() => draftFrom(config()));
   const [fields, setFields] = useState<Record<string, string>>({});
+  const [clientId, setClientId] = useState<string | null>(null);
   const observedId = useRef<string | null | undefined>(undefined);
+  const selectedChannels = useRef([0, 1, 2, 3]);
+  const subscribedRecording = useRef<string | null>(null);
+  useEffect(() => setClientId(crypto.randomUUID()), []);
   useEffect(() => {
-    const events = new EventSource('/api/events');
-    events.addEventListener('state', (event) => {
-      const snapshot: AcquisitionState = JSON.parse(event.data);
+    if (!clientId) return;
+    let events: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    let delay = 250;
+    const apply = (snapshot: AcquisitionState) => {
       setState(snapshot);
-      setConnected(true);
       if (observedId.current !== snapshot.id) {
         setDraft(draftFrom(snapshot.settings));
         observedId.current = snapshot.id;
       }
-    });
-    events.onerror = () => setConnected(false);
-    return () => events.close();
-  }, []);
+    };
+    const connect = async () => {
+      if (cancelled) return;
+      setConnection((current) => (current === 'connecting' ? current : 'reconnecting'));
+      try {
+        // A browser session is established by SSE; use the public current state to hydrate before
+        // that subscription exists, then replace it with the session-specific SSE snapshot.
+        const response = await fetch('/api/state');
+        if (!response.ok) throw new Error('Snapshot unavailable');
+        const snapshot = await response.json();
+        apply(snapshot);
+        if (cancelled) return;
+        // The selected channels belong to this browser, but the previous recording may have
+        // used fewer channels than the default four.  Clamp before opening the strict SSE
+        // subscription so a fresh tab can always establish its initial connection.
+        const channels = selectedChannels.current.filter(
+          (channel) => channel < snapshot.settings.channels,
+        );
+        selectedChannels.current = channels.length ? channels : [0];
+        const query = new URLSearchParams({
+          clientId,
+          channels: selectedChannels.current.join(','),
+        });
+        events = new EventSource(`/api/events?${query}`);
+        events.addEventListener('state', (event) => {
+          apply(JSON.parse(event.data));
+          delay = 250;
+          setConnection('live');
+        });
+        events.onerror = () => {
+          events?.close();
+          events = null;
+          if (cancelled) return;
+          setConnection(navigator.onLine ? 'reconnecting' : 'offline');
+          retry = setTimeout(connect, delay);
+          delay = Math.min(4000, delay * 2);
+        };
+      } catch {
+        if (cancelled) return;
+        setConnection(navigator.onLine ? 'reconnecting' : 'offline');
+        retry = setTimeout(connect, delay);
+        delay = Math.min(4000, delay * 2);
+      }
+    };
+    const online = () => {
+      if (!events && !retry) void connect();
+    };
+    const offline = () => setConnection('offline');
+    window.addEventListener('online', online);
+    window.addEventListener('offline', offline);
+    connect();
+    return () => {
+      cancelled = true;
+      if (retry) clearTimeout(retry);
+      events?.close();
+      window.removeEventListener('online', online);
+      window.removeEventListener('offline', offline);
+    };
+  }, [clientId]);
+
+  const connected = connection === 'live';
+
+  useEffect(() => {
+    if (!clientId || !connected || state?.status !== 'recording' || !state.id) return;
+    if (subscribedRecording.current === state.id) return;
+    subscribedRecording.current = state.id;
+    const channels = selectedChannels.current.filter(
+      (channel) => channel < state.settings.channels,
+    );
+    selectedChannels.current = channels.length ? channels : [0];
+    void fetch(`/api/acquisitions/${state.id}/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, channels: selectedChannels.current }),
+    })
+      .then(async (response) => {
+        const snapshot = await response.json();
+        if (response.ok) setState(snapshot);
+      })
+      .catch(() => {
+        // The connection loop will obtain the current state after a transient failure.
+      });
+  }, [clientId, connected, state?.id, state?.settings.channels, state?.status]);
 
   const status = state?.status || 'idle';
   const active = ['starting', 'recording', 'stopping'].includes(status);
@@ -83,6 +174,16 @@ export default function Acquire() {
   const budget = state?.settings?.bufferBytes ?? 4194304;
   const queued = complete ? 0 : metrics?.queueBytes;
   const bufferPercent = queued == null ? 0 : Math.min(100, (queued / budget) * 100);
+  const preview =
+    state?.preview ??
+    (active && state
+      ? {
+          channels: selectedChannels.current.filter((channel) => channel < state.settings.channels),
+          bucketFrames: Math.max(1, Math.ceil((state.settings.sampleRate * 2) / 256)),
+          capacity: 256,
+          buckets: [],
+        }
+      : null);
 
   function changeSetting(key: keyof ConfigurationDraft, value: string) {
     setError(null);
@@ -133,6 +234,25 @@ export default function Acquire() {
     }
   }
 
+  async function selectPreview(channel: number) {
+    if (!state?.id) return;
+    const current = selectedChannels.current;
+    const channels = current.includes(channel)
+      ? current.filter((value) => value !== channel)
+      : [...current, channel].sort((left, right) => left - right);
+    if (!channels.length) return setError('Keep at least one live preview channel selected.');
+    if (channels.length > 4) return setError('Show at most four live preview channels at once.');
+    const response = await fetch(`/api/acquisitions/${state.id}/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, channels }),
+    });
+    const result = await response.json();
+    if (!response.ok) return setError(result.error || 'Preview selection failed');
+    selectedChannels.current = channels;
+    setState(result);
+  }
+
   return (
     <>
       <header className="topbar flex h-[86px] items-center justify-between border-b border-line px-12 max-[1050px]:px-7 max-[760px]:h-[70px] max-[760px]:px-5">
@@ -160,9 +280,20 @@ export default function Acquire() {
             Verify ↗
           </a>
         </nav>
-        <div className="connection flex items-center gap-2.5 font-mono text-[11px] text-muted max-[760px]:gap-[7px] max-[760px]:text-[9px]">
+        <div
+          className="connection flex items-center gap-2.5 font-mono text-[11px] text-muted max-[760px]:gap-[7px] max-[760px]:text-[9px]"
+          data-browser-session={clientId || undefined}
+        >
           <span className={connected ? 'connection-dot online' : 'connection-dot'} />
-          <span>{connected ? 'Local connection' : state ? 'Reconnecting' : 'Connecting'}</span>
+          <span>
+            {connected
+              ? 'Local connection'
+              : connection === 'offline'
+                ? 'Disconnected'
+                : state
+                  ? 'Reconnecting'
+                  : 'Connecting'}
+          </span>
         </div>
       </header>
 
@@ -192,8 +323,11 @@ export default function Acquire() {
 
         {!connected && state && (
           <div role="status" className="notice">
-            Connection interrupted. Acquisition may still be running. Controls return when the
-            connection is restored.
+            {connection === 'offline'
+              ? 'Connection unavailable.'
+              : 'Reconnecting to the local service.'}{' '}
+            This is the last confirmed view; acquisition may still be running. Coalesced preview
+            updates are never missing recorded samples.
           </div>
         )}
         {(error || state?.error) && (
@@ -218,6 +352,36 @@ export default function Acquire() {
                 {state ? (complete && lost ? 'Completed with loss' : names[status]) : 'Connecting'}
               </span>
             </div>
+            {preview && (
+              <div className="px-[30px] pt-6 max-[1050px]:px-[22px] max-[760px]:px-5">
+                <SignalTrace
+                  label="Live acquired signal trace"
+                  model={{
+                    channels: preview.channels,
+                    envelope: preview,
+                    sampleRate: state!.settings.sampleRate,
+                    decimation: preview.bucketFrames,
+                    capacity: preview.capacity,
+                    nextIndex: preview.buckets.at(-1)?.end || 0,
+                  }}
+                />
+                <fieldset className="mt-4 flex flex-wrap gap-3" disabled={!active}>
+                  <legend className="micro">
+                    LIVE CHANNELS / DECIMATED MIN-MAX FROM PERSISTED FRAMES
+                  </legend>
+                  {Array.from({ length: state!.settings.channels }, (_, channel) => (
+                    <label key={channel} className="text-xs text-muted">
+                      <input
+                        type="checkbox"
+                        checked={selectedChannels.current.includes(channel)}
+                        onChange={() => void selectPreview(channel)}
+                      />{' '}
+                      Ch {channel}
+                    </label>
+                  ))}
+                </fieldset>
+              </div>
+            )}
             <div className="primary-reading flex flex-1 flex-col justify-center px-[30px] pt-[35px] pb-[30px] max-[1050px]:px-[22px] max-[760px]:px-5 max-[760px]:py-[25px]">
               <div className="reading-label flex items-center gap-3.5 text-sm text-[#c7cbc6]">
                 Recorded samples <span>ALL CHANNELS</span>

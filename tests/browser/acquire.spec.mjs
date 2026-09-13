@@ -5,8 +5,12 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-test('capture, reload, stop, and inspect a real recording', async ({ page }) => {
+test('capture, reload, stop, and inspect a real recording', async ({ page, request }) => {
   await page.goto('/');
+  expect((await request.get('/api/state?clientId=missing-session')).status()).toBe(404);
+  expect((await request.get('/api/events?clientId=invalid-session&channels=0,0')).status()).toBe(
+    400,
+  );
   await expect(page.getByRole('button', { name: 'Start acquisition' })).toBeEnabled();
   await page.getByRole('button', { name: 'Start acquisition' }).click();
   await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
@@ -29,6 +33,74 @@ test('capture, reload, stop, and inspect a real recording', async ({ page }) => 
   await expect(page.getByTestId('expected-frames')).toHaveText(
     await page.getByTestId('saved-frames').innerText(),
   );
+});
+
+test('independent observing tabs keep bounded session previews while acquisition continues', async ({
+  page,
+  browser,
+  request,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start acquisition' }).click();
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+  await expect(page.getByRole('img', { name: 'Live acquired signal trace' })).toBeVisible();
+  const firstSession = await page
+    .locator('[data-browser-session]')
+    .getAttribute('data-browser-session');
+  await expect
+    .poll(async () => {
+      const state = await (await request.get(`/api/state?clientId=${firstSession}`)).json();
+      return state.preview?.buckets.length || 0;
+    })
+    .toBeGreaterThan(0);
+  const firstPreview = await (await request.get(`/api/state?clientId=${firstSession}`)).json();
+  expect(firstPreview.preview.channels).toEqual([0, 1, 2, 3]);
+  expect(firstPreview.preview.buckets.length).toBeLessThanOrEqual(256);
+  expect(firstPreview.preview.buckets.every((bucket) => bucket.minimum.length === 4)).toBe(true);
+  expect(
+    firstPreview.preview.buckets.every(
+      (bucket) => bucket.end <= firstPreview.metrics.recordedFrames,
+    ),
+  ).toBe(true);
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
+  const observer = await context.newPage();
+  try {
+    await observer.goto('/');
+    await expect(observer.getByRole('img', { name: 'Live acquired signal trace' })).toBeVisible();
+    const secondSession = await observer
+      .locator('[data-browser-session]')
+      .getAttribute('data-browser-session');
+    await observer.getByLabel('Ch 0').click();
+    await expect(observer.getByText('Show at most four live preview channels at once')).toHaveCount(
+      0,
+    );
+    await expect(page.getByText(/Channel 0:/)).toBeVisible();
+    await expect(observer.getByText(/Channel 1:/)).toBeVisible();
+    await expect
+      .poll(async () => {
+        const state = await (await request.get(`/api/state?clientId=${secondSession}`)).json();
+        return state.preview?.channels.join(',');
+      })
+      .toBe('1,2,3');
+    expect(
+      (await (await request.get(`/api/state?clientId=${firstSession}`)).json()).preview.channels,
+    ).toEqual([0, 1, 2, 3]);
+    const id = await page.getByTestId('recording-id').innerText();
+    const invalid = await request.post(`/api/acquisitions/${id}/preview`, {
+      data: { channels: [0] },
+    });
+    expect(invalid.status()).toBe(400);
+    await context.close();
+    await expect
+      .poll(async () =>
+        Number((await page.getByTestId('recorded-samples').innerText()).replaceAll(',', '')),
+      )
+      .toBeGreaterThan(0);
+    await page.getByRole('button', { name: 'Stop acquisition' }).click();
+    await expect(page.getByTestId('acquisition-state')).toHaveText('Completed');
+  } finally {
+    await context.close().catch(() => {});
+  }
 });
 
 test('a startup failure is visible and leaves the controls recoverable', async ({ page }) => {

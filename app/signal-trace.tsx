@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import UPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
-import type { Frame } from '../core/contracts';
+import type { Frame, LivePreview } from '../core/contracts';
 
 const CHANNEL_COLORS = ['#ff9b87', '#b8d6a5', '#8fc6cf', '#d4b4db'];
 const CHART_HEIGHT = 276;
@@ -11,7 +11,8 @@ const MIN_CHART_WIDTH = 240;
 
 export interface SignalTraceModel {
   channels: readonly number[];
-  observations: readonly Frame[];
+  observations?: readonly Frame[];
+  envelope?: LivePreview;
   sampleRate: number;
   decimation: number;
   capacity: number;
@@ -28,6 +29,15 @@ interface PreparedTrace {
 }
 
 const integer = (value: number) => value.toLocaleString('en-US');
+
+function traceObservations(model: SignalTraceModel): readonly Frame[] {
+  if (model.envelope)
+    return model.envelope.buckets.map((bucket) => ({
+      index: bucket.end - 1,
+      values: bucket.maximum,
+    }));
+  return model.observations ?? [];
+}
 
 function traceDomain(model: SignalTraceModel): [number, number] {
   const stride = Math.max(1, model.decimation);
@@ -51,7 +61,8 @@ function prepareTrace(model: SignalTraceModel): PreparedTrace {
   const values = model.channels.map(() => [] as (number | null)[]);
   let previousIndex: number | null = null;
 
-  for (const observation of model.observations) {
+  const observations = traceObservations(model);
+  for (const observation of observations) {
     if (previousIndex !== null && observation.index - previousIndex > stride) {
       const gapIndex = previousIndex + stride;
       if (gapIndex < observation.index) {
@@ -65,7 +76,7 @@ function prepareTrace(model: SignalTraceModel): PreparedTrace {
     previousIndex = observation.index;
   }
 
-  const inWindow = model.observations.filter(
+  const inWindow = observations.filter(
     (observation) => observation.index >= domain[0] && observation.index <= domain[1],
   );
   const first = inWindow[0];
@@ -98,6 +109,7 @@ function chartOptions(
   model: SignalTraceModel,
   width: number,
   cursorReadout: HTMLElement,
+  currentModel: () => SignalTraceModel,
 ): UPlot.Options {
   const axisFont = '10px ui-monospace, SFMono-Regular, Consolas, monospace';
   const labelFont = '9px ui-monospace, SFMono-Regular, Consolas, monospace';
@@ -165,7 +177,7 @@ function chartOptions(
       ...model.channels.map((channel, index) => ({
         label: `Channel ${channel}`,
         scale: 'y',
-        stroke: CHANNEL_COLORS[index % CHANNEL_COLORS.length],
+        stroke: model.envelope ? 'transparent' : CHANNEL_COLORS[index % CHANNEL_COLORS.length],
         width: 1.5,
         spanGaps: false,
         points: { show: false },
@@ -174,6 +186,26 @@ function chartOptions(
       })),
     ],
     hooks: {
+      draw: [
+        (chart) => {
+          const envelope = currentModel().envelope;
+          if (!envelope) return;
+          const context = chart.ctx;
+          context.save();
+          context.lineWidth = 1.5;
+          for (const bucket of envelope.buckets) {
+            const x = chart.valToPos((bucket.start + bucket.end - 1) / 2, 'x', true);
+            for (let channel = 0; channel < envelope.channels.length; channel++) {
+              context.strokeStyle = CHANNEL_COLORS[channel % CHANNEL_COLORS.length];
+              context.beginPath();
+              context.moveTo(x, chart.valToPos(bucket.minimum[channel], 'y', true));
+              context.lineTo(x, chart.valToPos(bucket.maximum[channel], 'y', true));
+              context.stroke();
+            }
+          }
+          context.restore();
+        },
+      ],
       setCursor: [
         (chart) => {
           const index = chart.cursor.idx;
@@ -202,7 +234,8 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
   modelRef.current = model;
   const configurationKey = `${model.sampleRate}:${model.channels.join(',')}`;
   const prepared = prepareTrace(model);
-  const latest = model.observations.at(-1);
+  const latest = traceObservations(model).at(-1);
+  const latestBucket = model.envelope?.buckets.at(-1);
 
   useEffect(() => {
     const element = host.current;
@@ -212,7 +245,7 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
     const width = () => Math.max(MIN_CHART_WIDTH, Math.floor(element.clientWidth));
     const current = prepareTrace(modelRef.current);
     chart.current = new UPlot(
-      chartOptions(modelRef.current, width(), readout),
+      chartOptions(modelRef.current, width(), readout, () => modelRef.current),
       current.data,
       element,
     );
@@ -251,9 +284,14 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
   return (
     <figure className="signal-trace mt-5 border border-line bg-[#171917] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <figcaption className="micro">DECIMATED PREVIEW FROM STORED OBSERVATIONS</figcaption>
+        <figcaption className="micro">
+          {model.envelope
+            ? 'DECIMATED MIN-MAX ENVELOPE FROM PERSISTED FRAMES'
+            : 'DECIMATED PREVIEW FROM STORED OBSERVATIONS'}
+        </figcaption>
         <span className="font-mono text-[10px] text-muted">
-          {model.observations.length}/{model.capacity} points | every {model.decimation} frame
+          {traceObservations(model).length}/{model.capacity} {model.envelope ? 'buckets' : 'points'}
+          {' | '}every {model.decimation} frame
           {model.decimation === 1 ? '' : 's'}
         </span>
       </div>
@@ -279,7 +317,12 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
               style={{ backgroundColor: CHANNEL_COLORS[index % CHANNEL_COLORS.length] }}
               aria-hidden="true"
             />
-            Channel {channel}: {latest ? latest.values[index]?.toFixed(5) : 'Not available'}
+            Channel {channel}:{' '}
+            {latestBucket
+              ? `${latestBucket.minimum[index]?.toFixed(5)} – ${latestBucket.maximum[index]?.toFixed(5)}`
+              : latest
+                ? latest.values[index]?.toFixed(5)
+                : 'Not available'}
           </span>
         ))}
         <span data-testid="playback-latest-frame">

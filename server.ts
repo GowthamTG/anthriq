@@ -32,7 +32,18 @@ const playback = new PlaybackOwner(root);
 const app = next({ dev, hostname, port });
 await app.prepare();
 const handle = app.getRequestHandler();
-const clients = new Set<{ res: ServerResponse; revision: number }>();
+const MAX_EVENT_CLIENTS = 8;
+const MAX_EVENT_BYTES = 48 * 1024;
+const MAX_CLIENT_BUFFER_BYTES = 64 * 1024;
+const MAX_DRAIN_MS = 2000;
+type EventClient = {
+  res: ServerResponse;
+  revision: number;
+  clientId?: string;
+  draining: boolean;
+  drainingSince: number;
+};
+const clients = new Set<EventClient>();
 let revision = 0,
   closing = false;
 acquisition.subscribe(() => {
@@ -95,29 +106,81 @@ async function streamLines(res: ServerResponse, lines: AsyncIterable<string>) {
   }
 }
 
-function event(res: ServerResponse) {
-  // Never queue another update behind a slow reader; snapshots are replaceable.
-  if (res.writableNeedDrain || res.writableLength > 65536) {
-    res.destroy();
+function compactPreview(state: ReturnType<typeof acquisition.snapshot>) {
+  while (state.preview?.buckets.length && state.preview.buckets.length > 1) {
+    const body = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
+    if (Buffer.byteLength(body) <= MAX_EVENT_BYTES) return;
+    const merged = [];
+    for (let index = 0; index < state.preview.buckets.length; index += 2) {
+      const first = state.preview.buckets[index];
+      const second = state.preview.buckets[index + 1];
+      if (!second) merged.push(first);
+      else
+        merged.push({
+          start: first.start,
+          end: second.end,
+          minimum: first.minimum.map((value, channel) => Math.min(value, second.minimum[channel])),
+          maximum: first.maximum.map((value, channel) => Math.max(value, second.maximum[channel])),
+        });
+    }
+    state.preview.buckets = merged;
+    state.preview.bucketFrames *= 2;
+    state.preview.capacity = Math.ceil(state.preview.capacity / 2);
+  }
+}
+
+function eventBody(client: EventClient) {
+  const state = acquisition.snapshot(client.clientId);
+  compactPreview(state);
+  return (
+    `event: state\ndata: ${JSON.stringify(state)}\n\n` +
+    `event: verification\ndata: ${JSON.stringify(verification.snapshot())}\n\n` +
+    `event: playback\ndata: ${JSON.stringify(playback.snapshot())}\n\n`
+  );
+}
+
+function event(client: EventClient) {
+  if (client.res.destroyed) return;
+  if (client.draining || client.res.writableLength > MAX_CLIENT_BUFFER_BYTES) {
+    if (client.res.writableLength > MAX_CLIENT_BUFFER_BYTES) client.res.destroy();
     return;
   }
-  res.write(`event: state\ndata: ${JSON.stringify(acquisition.snapshot())}\n\n`);
-  res.write(`event: verification\ndata: ${JSON.stringify(verification.snapshot())}\n\n`);
-  res.write(`event: playback\ndata: ${JSON.stringify(playback.snapshot())}\n\n`);
+  const body = eventBody(client);
+  if (Buffer.byteLength(body) > MAX_CLIENT_BUFFER_BYTES) {
+    client.res.destroy();
+    return;
+  }
+  client.revision = revision;
+  if (!client.res.write(body)) {
+    client.draining = true;
+    client.drainingSince = Date.now();
+    client.res.once('drain', () => {
+      client.draining = false;
+      if (client.revision !== revision) event(client);
+    });
+  }
+}
+
+function evictExpiredDrain(client: EventClient) {
+  if (client.draining && Date.now() - client.drainingSince > MAX_DRAIN_MS) {
+    client.res.destroy();
+    return true;
+  }
+  return false;
 }
 
 const updates = setInterval(() => {
   for (const client of clients) {
+    if (evictExpiredDrain(client)) continue;
     if (client.revision !== revision) {
-      event(client.res);
-      client.revision = revision;
+      event(client);
     }
   }
 }, 100);
 const heartbeat = setInterval(() => {
   for (const client of clients) {
-    if (client.res.writableNeedDrain) client.res.destroy();
-    else client.res.write(': connected\n\n');
+    if (evictExpiredDrain(client)) continue;
+    else if (!client.draining && !client.res.writableNeedDrain) client.res.write(': connected\n\n');
   }
 }, 15000);
 
@@ -141,18 +204,48 @@ async function readJson(req: IncomingMessage) {
   return body ? (JSON.parse(body) as unknown) : {};
 }
 
+const validClientId = (value: unknown) =>
+  typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+function eventQuery(url: URL) {
+  for (const key of url.searchParams.keys())
+    if (!['clientId', 'channels'].includes(key) || url.searchParams.getAll(key).length !== 1)
+      throw Object.assign(new Error(`Invalid event query parameter: ${key}`), { statusCode: 400 });
+  const clientId = url.searchParams.get('clientId') ?? undefined;
+  if (clientId && !validClientId(clientId))
+    throw Object.assign(new Error('Invalid browser session'), { statusCode: 400 });
+  const rawChannels = url.searchParams.get('channels');
+  const channels = rawChannels === null ? undefined : rawChannels.split(',').map(Number);
+  if (channels?.some((channel) => !Number.isSafeInteger(channel)))
+    throw Object.assign(new Error('Preview channels must be integer indices'), { statusCode: 400 });
+  return { clientId, channels };
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${hostname}:${port}`);
   try {
     if (!url.pathname.startsWith('/api/')) return await handle(req, res);
     if (closing) return json(res, 503, { error: 'Application is shutting down' });
-    if (req.method === 'GET' && url.pathname === '/api/state')
-      return json(res, 200, acquisition.snapshot());
+    if (req.method === 'GET' && url.pathname === '/api/state') {
+      const { clientId } = eventQuery(url);
+      if (clientId && !acquisition.hasPreviewSession(clientId))
+        return json(res, 404, { error: 'Browser preview session is unavailable' });
+      return json(res, 200, acquisition.snapshot(clientId));
+    }
     if (req.method === 'GET' && url.pathname === '/api/verification')
       return json(res, 200, verification.snapshot());
     if (req.method === 'GET' && url.pathname === '/api/playback')
       return json(res, 200, playback.snapshot());
     if (req.method === 'GET' && url.pathname === '/api/events') {
+      const { clientId, channels } = eventQuery(url);
+      const replacing = [...clients].some((client) => clientId && client.clientId === clientId);
+      if (clients.size >= MAX_EVENT_CLIENTS && !replacing)
+        return json(res, 429, { error: 'At most eight live observers are supported' });
+      const selected =
+        channels ??
+        Array.from({ length: Math.min(4, acquisition.snapshot().settings.channels) }, (_, i) => i);
+      if (clientId) acquisition.validatePreviewChannels(selected);
+      for (const existing of clients)
+        if (clientId && existing.clientId === clientId) existing.res.destroy();
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
@@ -160,15 +253,52 @@ const server = createServer(async (req, res) => {
         'X-Accel-Buffering': 'no',
       });
       res.flushHeaders();
-      const client = { res, revision };
+      const client: EventClient = {
+        res,
+        revision: -1,
+        clientId,
+        draining: false,
+        drainingSince: 0,
+      };
       clients.add(client);
-      res.on('close', () => clients.delete(client));
-      event(res);
+      if (clientId) acquisition.subscribePreview(clientId, selected);
+      res.on('close', () => {
+        clients.delete(client);
+        if (clientId && ![...clients].some((other) => other.clientId === clientId))
+          acquisition.unsubscribePreview(clientId);
+      });
+      event(client);
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/acquisitions') {
       const settings = await readConfiguration(req);
       return json(res, 202, acquisition.start(settings));
+    }
+    const previewControl = url.pathname.match(/^\/api\/acquisitions\/([^/]+)\/preview$/);
+    if (req.method === 'POST' && previewControl) {
+      const body = await readJson(req);
+      if (
+        !body ||
+        typeof body !== 'object' ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 2 ||
+        !validClientId((body as Record<string, unknown>).clientId) ||
+        !Array.isArray((body as Record<string, unknown>).channels) ||
+        !(body as { channels: unknown[] }).channels.every((channel) => typeof channel === 'number')
+      )
+        return json(res, 400, { error: 'Provide only preview channels' });
+      const clientId = (body as { clientId: string }).clientId;
+      if (![...clients].some((client) => client.clientId === clientId))
+        return json(res, 409, { error: 'The browser preview session is not connected' });
+      return json(
+        res,
+        200,
+        acquisition.selectPreview(
+          decodeURIComponent(previewControl[1]),
+          clientId,
+          (body as { channels: number[] }).channels,
+        ),
+      );
     }
     if (req.method === 'POST' && url.pathname === '/api/playback') {
       const body = await readJson(req);

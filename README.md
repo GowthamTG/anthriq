@@ -62,6 +62,16 @@ stopped; positive duration stops automatically. Invalid submissions preserve ent
 field errors. Browser reloads reconnect to the active acquisition; closing the tab does not stop it.
 Stop the application with Ctrl+C to request graceful shutdown.
 
+## Live browser connections
+
+The acquisition service owns the generator, recorder, disk writes, and live-preview subscriptions;
+closing, reloading, or slowing a browser never requests Stop. Each tab has its own selected live
+channels (one to four) and receives only its bounded two-second, persisted-frame envelope. The
+service supports at most eight live observers. It sends current snapshots rather than a history,
+coalesces updates while a socket drains, and disconnects a socket that remains backpressured for two
+seconds. A reconnect fetches a fresh snapshot before resuming SSE. Skipped or coalesced screen
+updates are display loss, never missing recorded samples.
+
 The server binds only to `127.0.0.1`. `PORT` overrides port 3000, and `SCOPE_RECORDINGS_DIR`
 overrides the default `recordings` directory. Use a new writable location; recordings are never
 overwritten. These environment variables work for both development and production launch.
@@ -189,6 +199,15 @@ is committed, is capped at 256 frames and approximately 64 KiB, and each schedul
 most 4,096 physical observations. The browser preview retains at most 256 decimated points from the
 first four selected channels. uPlot is loaded only with the recording-detail chart and updates that
 bounded data through one retained chart instance.
+
+## Watch live acquisition
+
+During acquisition, the Acquire view receives a bounded recorder-side live preview, never the full
+sample stream. It shows a two-second rolling window with at most 256 original-index buckets and
+selected-channel min/max values calculated only after the corresponding frames are written. Each
+browser session has its own one-to-four channel selection; changing it clears only that session's
+display and cannot change recording, credits, or persisted frames. Preview decimation or skipped
+screen updates are not recording loss.
 
 ## Verify a recording
 

@@ -231,6 +231,18 @@ export interface AcquisitionMetrics {
   elapsedSeconds: number;
   generator: Partial<GeneratorMetrics>;
 }
+export interface LivePreviewBucket {
+  start: number;
+  end: number;
+  minimum: number[];
+  maximum: number[];
+}
+export interface LivePreview {
+  channels: number[];
+  bucketFrames: number;
+  capacity: number;
+  buckets: LivePreviewBucket[];
+}
 export type AcquisitionStatus =
   'idle' | 'starting' | 'recording' | 'stopping' | 'completed' | 'failed';
 export interface AcquisitionState {
@@ -238,6 +250,7 @@ export interface AcquisitionState {
   id: string | null;
   settings: Settings;
   metrics: AcquisitionMetrics | null;
+  preview: LivePreview | null;
   metadata: RecordingMetadata | null;
   error: string | null;
 }
@@ -250,8 +263,10 @@ export type GeneratorMessage =
   | SourceDone
   | { type: 'started'; timestamp: string }
   | { type: 'status'; generator: GeneratorMetrics };
-export type RecorderCommand = { type: 'stop' | 'status-ack' };
+export type RecorderCommand =
+  | { type: 'stop' | 'status-ack' }
+  | { type: 'preview-subscription'; clientId: string; channels: number[] | null };
 export type RecorderMessage =
   | { type: 'started' | 'stopping' | 'completed'; metadata: RecordingMetadata }
   | { type: 'error'; error: string }
-  | ({ type: 'status'; preview: Frame[] } & AcquisitionMetrics);
+  | ({ type: 'status'; previews: Record<string, LivePreview> } & AcquisitionMetrics);

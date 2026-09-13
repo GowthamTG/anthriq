@@ -26,6 +26,8 @@ export class Acquisition {
   finalMetadata: RecordingMetadata | null = null;
   finished: Promise<AcquisitionState> | null = null;
   resolveFinished: (state: AcquisitionState) => void = () => {};
+  previews = new Map<string, import('./contracts.ts').LivePreview>();
+  previewChannels = new Map<string, number[]>();
   constructor(root = resolve('recordings')) {
     this.root = root;
     this.state = {
@@ -33,13 +35,16 @@ export class Acquisition {
       id: null,
       settings: config(),
       metrics: null,
+      preview: null,
       metadata: null,
       error: null,
     };
   }
 
-  snapshot() {
-    return structuredClone(this.state);
+  snapshot(clientId?: string) {
+    const snapshot = structuredClone(this.state);
+    snapshot.preview = clientId ? structuredClone(this.previews.get(clientId) ?? null) : null;
+    return snapshot;
   }
   subscribe(listener: (state: AcquisitionState) => void) {
     this.listeners.add(listener);
@@ -53,15 +58,22 @@ export class Acquisition {
     if (this.child || active(this.state.status))
       throw Object.assign(new Error('An acquisition is already active'), { statusCode: 409 });
     const effective = config(settings);
+    for (const [clientId, channels] of this.previewChannels) {
+      const supported = channels.filter((channel) => channel < effective.channels);
+      this.previewChannels.set(clientId, supported.length ? supported : [0]);
+    }
     directory = resolve(directory || join(this.root, randomUUID()));
     this.directory = directory;
     this.stopRequested = false;
     this.finalMetadata = null;
+    // A prior acquisition's preview cannot be presented during startup of a new recording.
+    this.previews.clear();
     this.state = {
       status: 'starting',
       id: basename(directory),
       settings: effective,
       metrics: null,
+      preview: null,
       metadata: null,
       error: null,
     };
@@ -87,12 +99,17 @@ export class Acquisition {
       if (message.type === 'started') {
         this.state.metadata = message.metadata;
         this.state.status = this.stopRequested ? 'stopping' : 'recording';
+        // The recorder installs its IPC listener during startup; subscribe only after its
+        // explicit ready signal so a pre-start browser session is not lost.
+        for (const [clientId, channels] of this.previewChannels)
+          send({ type: 'preview-subscription', clientId, channels });
         if (this.stopRequested) send({ type: 'stop' });
       } else if (message.type === 'status') {
         // Acknowledge immediately, independently of browser delivery or painting.
         send({ type: 'status-ack' });
-        const { preview, type, ...metrics } = message;
+        const { previews, type, ...metrics } = message;
         this.state.metrics = metrics;
+        this.previews = new Map(Object.entries(previews));
       } else if (message.type === 'stopping') {
         this.state.metadata = message.metadata;
         this.state.status = 'stopping';
@@ -169,6 +186,53 @@ export class Acquisition {
       this.resolveFinished(this.snapshot());
     });
     return this.snapshot();
+  }
+
+  validatePreviewChannels(channels: number[]) {
+    if (
+      !Array.isArray(channels) ||
+      !channels.length ||
+      channels.length > 4 ||
+      new Set(channels).size !== channels.length ||
+      channels.some(
+        (channel) =>
+          !Number.isSafeInteger(channel) || channel < 0 || channel >= this.state.settings.channels,
+      )
+    )
+      throw Object.assign(
+        new Error('Choose one to four unique, valid zero-based preview channels'),
+        {
+          statusCode: 400,
+        },
+      );
+  }
+
+  subscribePreview(clientId: string, channels: number[]) {
+    this.validatePreviewChannels(channels);
+    this.previewChannels.set(clientId, [...channels]);
+    this.previews.delete(clientId);
+    if (this.child?.connected)
+      this.child.send({ type: 'preview-subscription', clientId, channels }, () => {});
+    this.publish();
+  }
+
+  unsubscribePreview(clientId: string) {
+    this.previewChannels.delete(clientId);
+    this.previews.delete(clientId);
+    if (this.child?.connected)
+      this.child.send({ type: 'preview-subscription', clientId, channels: null }, () => {});
+    this.publish();
+  }
+
+  hasPreviewSession(clientId: string) {
+    return this.previewChannels.has(clientId);
+  }
+
+  selectPreview(id: string, clientId: string, channels: number[]) {
+    if (!this.child || this.state.id !== id || !active(this.state.status))
+      throw Object.assign(new Error('The recording is not active'), { statusCode: 409 });
+    this.subscribePreview(clientId, channels);
+    return this.snapshot(clientId);
   }
 
   stop() {

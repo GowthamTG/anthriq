@@ -1,4 +1,4 @@
-import { open } from 'node:fs/promises';
+import { open, type FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { RecordingMetadata } from './contracts.ts';
 import { stride, WAVEFORM } from './signal.ts';
@@ -6,22 +6,7 @@ import { safeExtent } from './config.ts';
 
 const invalid = (message: string): never => { throw Object.assign(new Error(message), { statusCode: 422 }); };
 
-export async function readMetadata(directory: string): Promise<RecordingMetadata> {
-  // Read a fixed maximum, including a sentinel byte; even a growing file is bounded.
-  const file = await open(join(directory, 'metadata.json'), 'r');
-  const buffer = Buffer.alloc(65537);
-  let count = 0;
-  try {
-    while (count < buffer.length) {
-      const { bytesRead } = await file.read(buffer, count, buffer.length - count, count);
-      if (!bytesRead) break;
-      count += bytesRead;
-    }
-  } finally { await file.close(); }
-  if (count > 65536) invalid('Metadata exceeds the 64 KiB limit');
-  let raw: unknown;
-  try { raw = JSON.parse(buffer.subarray(0, count).toString('utf8')); }
-  catch { invalid('Invalid metadata JSON'); }
+export function parseMetadata(raw: unknown): RecordingMetadata {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) invalid('Metadata must be an object');
   const m = raw as Record<string, unknown>;
   const integer = (key: string, min: number, max: number) => {
@@ -57,4 +42,26 @@ export async function readMetadata(directory: string): Promise<RecordingMetadata
   if (m.duration !== null) finite('duration');
   if (m.droppedFrames !== undefined) integer('droppedFrames', 0, Number.MAX_SAFE_INTEGER);
   return m as unknown as RecordingMetadata;
+}
+
+export async function readMetadataHandle(file: FileHandle): Promise<RecordingMetadata> {
+  const buffer = Buffer.alloc(65537);
+  let count = 0;
+  while (count < buffer.length) {
+    const { bytesRead } = await file.read(buffer, count, buffer.length - count, count);
+    if (!bytesRead) break;
+    count += bytesRead;
+  }
+  if (count > 65536) invalid('Metadata exceeds the 64 KiB limit');
+  let raw: unknown;
+  try { raw = JSON.parse(buffer.subarray(0, count).toString('utf8')); }
+  catch { invalid('Invalid metadata JSON'); }
+  return parseMetadata(raw);
+}
+
+export async function readMetadata(directory: string): Promise<RecordingMetadata> {
+  // Read a fixed maximum, including a sentinel byte; even a growing file is bounded.
+  const file = await open(join(directory, 'metadata.json'), 'r');
+  try { return await readMetadataHandle(file); }
+  finally { await file.close(); }
 }

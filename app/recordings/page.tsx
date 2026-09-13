@@ -55,7 +55,7 @@ export default function Recordings() {
   return <>
     <header className="topbar flex h-[86px] items-center justify-between border-b border-line px-12 max-[760px]:h-[70px] max-[760px]:px-5">
       <a href="/" className="brand flex items-center gap-3 text-xl font-extrabold tracking-[3px]"><span className="grid size-[30px] place-items-center bg-accent text-[#111]" aria-hidden="true">S</span>SCOPE</a>
-      <nav aria-label="Workspace" className="flex items-center gap-6 text-xs"><a href="/" className="text-muted hover:text-white">Acquire</a><span aria-current="page">Recordings</span></nav>
+      <nav aria-label="Workspace" className="flex items-center gap-6 text-xs"><a href="/" className="text-muted hover:text-white">Acquire</a><span aria-current="page">Recordings</span><a href="/verify" className="text-muted hover:text-white">Verify</a></nav>
     </header>
     <main className="mx-auto max-w-[1456px] px-12 py-12 max-[760px]:px-5 max-[760px]:py-8">
       <p className="eyebrow">RECORDINGS / LOCAL WORKSPACE</p>

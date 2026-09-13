@@ -8,7 +8,10 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
         <div className="details-heading flex items-center justify-between"><h2>Recording details</h2><span className="micro" data-testid="format">{details.format}</span></div>
         <div className="mt-5 flex flex-wrap items-center gap-3 font-mono text-xs">
           <span className={details.condition === 'finalized' ? 'text-[#c1cfb2]' : 'text-[#ffba89]'}>{details.condition === 'finalized' ? 'Finalized' : details.condition === 'attention' ? 'Needs attention' : 'Incomplete / in progress'}</span>
-          <span className="text-muted">Integrity not verified</span>
+          <span className={details.verification.status === 'verified' ? 'text-[#c1cfb2]' : details.verification.status === 'integrity-failed' || details.verification.status === 'stale' ? 'text-[#ffba89]' : 'text-muted'}>
+            {details.verification.status === 'verified' ? 'Integrity verified' : details.verification.status === 'integrity-failed' ? 'Integrity failed' : details.verification.status === 'stale' ? 'Verification stale' : 'Integrity not verified'}
+          </span>
+          {details.status === 'completed' && <a className="ml-auto border border-[#78826e] px-3 py-2 text-[10px] text-white hover:bg-[#2e3429]" href={`/verify?id=${encodeURIComponent(details.id)}`}>Verify recording ↗</a>}
         </div>
         {typeof details.error === 'string' && <div data-testid="inspection-failure" role="alert" className="mt-5 border border-[#805a47] bg-[#2a211c] p-4 text-sm leading-relaxed text-[#ffba89]">
           <p className="mb-1 font-semibold">Acquisition failed</p><p className="break-words">{details.error}</p>

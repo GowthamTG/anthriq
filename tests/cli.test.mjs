@@ -36,7 +36,7 @@ test('a real two-second acquisition is clock-paced, lossless, and independently 
   assert.equal(bytes.readFloatLE(8), -0.7823104858398438);
   const result = JSON.parse((await cli('verify', directory)).stdout);
   assert.equal(result.result, 'PASS');
-  assert.deepEqual([result.missing, result.duplicated, result.incorrect], [0, 0, 0]);
+  assert.deepEqual([result.discrepancies.missing.samples, result.discrepancies.duplicated.samples, result.discrepancies.incorrect.samples], [0, 0, 0]);
 });
 
 test('interrupting continuous capture drains data and exits both owned processes', async t => {

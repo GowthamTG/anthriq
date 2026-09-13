@@ -1,22 +1,26 @@
 import { createServer, type ServerResponse, type IncomingMessage } from 'node:http';
+import { readFile, stat } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import next from 'next';
 import { Acquisition } from './core/acquisition.ts';
 import { inspect } from './core/storage.ts';
 import { listRecordings, recordingId } from './core/library.ts';
 import { config, ConfigurationError } from './core/config.ts';
+import { Verification } from './core/verification.ts';
 
 const dev = process.argv.includes('--dev');
 const port = Number(process.env.PORT || 3000);
 const hostname = '127.0.0.1';
 const root = resolve(process.env.SCOPE_RECORDINGS_DIR || 'recordings');
 const acquisition = new Acquisition(root);
+const verification = new Verification(root);
 const app = next({ dev, hostname, port });
 await app.prepare();
 const handle = app.getRequestHandler();
 const clients = new Set<{ res: ServerResponse; revision: number }>();
 let revision = 0, closing = false;
 acquisition.subscribe(() => { revision++; });
+verification.subscribe(() => { revision++; });
 const json = (res: ServerResponse, status: number, value: unknown) => {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(value));
@@ -26,6 +30,7 @@ function event(res: ServerResponse) {
   // Never queue another update behind a slow reader; snapshots are replaceable.
   if (res.writableNeedDrain || res.writableLength > 65536) { res.destroy(); return; }
   res.write(`event: state\ndata: ${JSON.stringify(acquisition.snapshot())}\n\n`);
+  res.write(`event: verification\ndata: ${JSON.stringify(verification.snapshot())}\n\n`);
 }
 
 const updates = setInterval(() => {
@@ -49,12 +54,22 @@ async function readConfiguration(req: IncomingMessage) {
   return config(body ? JSON.parse(body) : {});
 }
 
+async function readJson(req: IncomingMessage) {
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > 1024) throw Object.assign(new Error('Request body is too large'), { statusCode: 413 });
+  }
+  return body ? JSON.parse(body) as unknown : {};
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${hostname}:${port}`);
   try {
     if (!url.pathname.startsWith('/api/')) return await handle(req, res);
     if (closing) return json(res, 503, { error: 'Application is shutting down' });
     if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, acquisition.snapshot());
+    if (req.method === 'GET' && url.pathname === '/api/verification') return json(res, 200, verification.snapshot());
     if (req.method === 'GET' && url.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
       res.flushHeaders();
@@ -68,9 +83,27 @@ const server = createServer(async (req, res) => {
       const settings = await readConfiguration(req);
       return json(res, 202, acquisition.start(settings));
     }
+    if (req.method === 'POST' && url.pathname === '/api/verifications') {
+      const body = await readJson(req);
+      if (!body || typeof body !== 'object' || Array.isArray(body) || typeof (body as Record<string, unknown>).recordingId !== 'string' || Object.keys(body).some(key => key !== 'recordingId')) {
+        return json(res, 400, { error: 'Provide only a recordingId' });
+      }
+      return json(res, 202, await verification.start((body as { recordingId: string }).recordingId));
+    }
     if (req.method === 'GET' && url.pathname === '/api/recordings') {
       for (const key of url.searchParams.keys()) if (!['limit', 'cursor'].includes(key)) return json(res, 400, { error: `Unknown query parameter: ${key}` });
       return json(res, 200, await listRecordings(root, { limit: url.searchParams.get('limit') ?? undefined, cursor: url.searchParams.get('cursor') ?? undefined }));
+    }
+    const reportMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/verification$/);
+    if (req.method === 'GET' && reportMatch) {
+      const id = decodeURIComponent(reportMatch[1]);
+      if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
+      const path = join(root, id, 'verification.json');
+      const reportStat = await stat(path);
+      if (!reportStat.isFile() || reportStat.size > 65536) throw Object.assign(new Error('Verification report is unavailable'), { statusCode: 422 });
+      const report = await readFile(path);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="${id}-verification.json"`, 'Cache-Control': 'no-store' });
+      return res.end(report);
     }
     if (req.method === 'GET' && url.pathname.startsWith('/api/recordings/')) {
       const id = decodeURIComponent(url.pathname.slice('/api/recordings/'.length));
@@ -106,7 +139,7 @@ async function shutdown() {
   clearInterval(heartbeat);
   for (const { res } of clients) res.end();
   server.close();
-  await acquisition.shutdown();
+  await Promise.all([acquisition.shutdown(), verification.shutdown()]);
   await app.close();
   server.closeAllConnections();
 }

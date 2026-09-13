@@ -1,5 +1,5 @@
 import type { FileHandle } from 'node:fs/promises';
-import type { RecordingMetadata, RecordingInspection } from './contracts.ts';
+import type { FileIdentity, RecordingMetadata, RecordingInspection, VerificationReport, VerificationSummary } from './contracts.ts';
 import { open, writeFile, rename, stat } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { stride } from './signal.ts';
@@ -22,9 +22,10 @@ export async function saveMetadata(directory: string, metadata: RecordingMetadat
 
 export async function inspect(directory: string): Promise<RecordingInspection> {
   const metadata = await readMetadata(directory);
-  const physical = await stat(join(directory, 'frames.bin'));
+  const metadataPhysical = await stat(join(directory, 'metadata.json'), { bigint: true });
+  const physical = await stat(join(directory, 'frames.bin'), { bigint: true });
   if (!physical.isFile()) throw Object.assign(new Error('Frame data must be a regular file'), { statusCode: 422 });
-  const { size } = physical;
+  const size = Number(physical.size);
   if (!Number.isSafeInteger(size)) throw new Error('Recording file size exceeds safe integer offsets');
   const recordBytes = stride(metadata.channels);
   const completeRecords = Math.floor(size / recordBytes);
@@ -44,8 +45,48 @@ export async function inspect(directory: string): Promise<RecordingInspection> {
   if (metadata.expectedFrames === null) warnings.push('Final source extent is unconfirmed; duration and completeness are unknown');
   if (metadata.status !== 'completed') warnings.push('Recording is not finalized; metadata counts may lag the readable physical prefix');
   const condition = contradictory || (metadata.status === 'completed' && metadata.expectedFrames === null) ? 'attention' : metadata.status === 'completed' ? 'finalized' : 'incomplete';
-  return { ...metadata, duration: metadata.expectedFrames === null ? null : metadata.duration, fileBytes: size, completeRecords, trailingBytes, recordBytes, readableBytes: completeRecords * recordBytes, warnings, condition };
+  const verification = await verificationSummary(directory, {
+    metadata: fileIdentity(metadataPhysical),
+    frames: fileIdentity(physical),
+  });
+  if (verification.status === 'stale') warnings.push('Saved verification is stale and no longer matches the current recording files');
+  return { ...metadata, duration: metadata.expectedFrames === null ? null : metadata.duration, fileBytes: size, completeRecords, trailingBytes, recordBytes, readableBytes: completeRecords * recordBytes, warnings, condition, verification };
 
+}
+
+function fileIdentity(value: { dev: bigint; ino: bigint; size: bigint; mtimeNs: bigint }): FileIdentity {
+  return { dev: String(value.dev), ino: String(value.ino), size: Number(value.size), mtimeNs: String(value.mtimeNs) };
+}
+
+async function readBoundedJson(path: string): Promise<unknown> {
+  const file = await open(path, 'r');
+  const buffer = Buffer.alloc(65537);
+  let count = 0;
+  try {
+    while (count < buffer.length) {
+      const { bytesRead } = await file.read(buffer, count, buffer.length - count, count);
+      if (!bytesRead) break;
+      count += bytesRead;
+    }
+  } finally { await file.close(); }
+  if (count > 65536) throw new Error('Verification report exceeds the 64 KiB limit');
+  return JSON.parse(buffer.subarray(0, count).toString('utf8'));
+}
+
+const identitiesMatch = (left: FileIdentity, right: FileIdentity) => left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs;
+
+async function verificationSummary(directory: string, current: VerificationReport['checkedFiles']): Promise<VerificationSummary> {
+  let raw: unknown;
+  try { raw = await readBoundedJson(join(directory, 'verification.json')); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { status: 'unverified' };
+    return { status: 'stale' };
+  }
+  if (!raw || typeof raw !== 'object') return { status: 'stale' };
+  const report = raw as Partial<VerificationReport>;
+  if (report.format !== 'SCOPE-VERIFICATION/1' || !report.checkedFiles?.metadata || !report.checkedFiles.frames || !['PASS', 'FAIL'].includes(report.result ?? '')) return { status: 'stale' };
+  if (!identitiesMatch(report.checkedFiles.metadata, current.metadata) || !identitiesMatch(report.checkedFiles.frames, current.frames)) return { status: 'stale', checkedAt: report.checkedAt, result: report.result };
+  return { status: report.result === 'PASS' ? 'verified' : 'integrity-failed', checkedAt: report.checkedAt, result: report.result };
 }
 
 async function readExact(file: FileHandle, buffer: Buffer, position: number, bytes = buffer.length) {

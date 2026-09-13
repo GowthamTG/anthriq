@@ -1,4 +1,11 @@
-import type { AcquisitionState, AcquisitionStatus, RecordingMetadata, SettingsInput, RecorderCommand, RecorderMessage } from './contracts.ts';
+import type {
+  AcquisitionState,
+  AcquisitionStatus,
+  RecordingMetadata,
+  SettingsInput,
+  RecorderCommand,
+  RecorderMessage,
+} from './contracts.ts';
 import { fork, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { resolve, join, basename } from 'node:path';
@@ -21,28 +28,61 @@ export class Acquisition {
   resolveFinished: (state: AcquisitionState) => void = () => {};
   constructor(root = resolve('recordings')) {
     this.root = root;
-    this.state = { status: 'idle', id: null, settings: config(), metrics: null, metadata: null, error: null };
+    this.state = {
+      status: 'idle',
+      id: null,
+      settings: config(),
+      metrics: null,
+      metadata: null,
+      error: null,
+    };
   }
 
-  snapshot() { return structuredClone(this.state); }
-  subscribe(listener: (state: AcquisitionState) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
-  publish() { for (const listener of this.listeners) listener(this.snapshot()); }
+  snapshot() {
+    return structuredClone(this.state);
+  }
+  subscribe(listener: (state: AcquisitionState) => void) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  publish() {
+    for (const listener of this.listeners) listener(this.snapshot());
+  }
 
   start(settings: SettingsInput = {}, directory?: string) {
-    if (this.child || active(this.state.status)) throw Object.assign(new Error('An acquisition is already active'), { statusCode: 409 });
+    if (this.child || active(this.state.status))
+      throw Object.assign(new Error('An acquisition is already active'), { statusCode: 409 });
     const effective = config(settings);
     directory = resolve(directory || join(this.root, randomUUID()));
     this.directory = directory;
     this.stopRequested = false;
     this.finalMetadata = null;
-    this.state = { status: 'starting', id: basename(directory), settings: effective, metrics: null, metadata: null, error: null };
-    this.finished = new Promise(resolve => { this.resolveFinished = resolve; });
+    this.state = {
+      status: 'starting',
+      id: basename(directory),
+      settings: effective,
+      metrics: null,
+      metadata: null,
+      error: null,
+    };
+    this.finished = new Promise((resolve) => {
+      this.resolveFinished = resolve;
+    });
     this.publish();
-    let stderr = '', disconnected = false;
-    const child = fork(new URL('./recorder.ts', import.meta.url), [directory, JSON.stringify(effective)], { serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+    let stderr = '',
+      disconnected = false;
+    const child = fork(
+      new URL('./recorder.ts', import.meta.url),
+      [directory, JSON.stringify(effective)],
+      { serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] },
+    );
     this.child = child;
-    child.stderr!.on('data', data => { stderr = (stderr + data).slice(-4096); });
-    const send = (message: RecorderCommand) => { if (child.connected) child.send(message, () => {}); };
+    child.stderr!.on('data', (data) => {
+      stderr = (stderr + data).slice(-4096);
+    });
+    const send = (message: RecorderCommand) => {
+      if (child.connected) child.send(message, () => {});
+    };
     child.on('message', (message: RecorderMessage) => {
       if (message.type === 'started') {
         this.state.metadata = message.metadata;
@@ -67,8 +107,14 @@ export class Acquisition {
       }
       this.publish();
     });
-    child.on('disconnect', () => { disconnected = true; if (!this.finalMetadata) this.armStopTimeout(); });
-    child.on('error', error => { this.state.error = error.message; this.armStopTimeout(); });
+    child.on('disconnect', () => {
+      disconnected = true;
+      if (!this.finalMetadata) this.armStopTimeout();
+    });
+    child.on('error', (error) => {
+      this.state.error = error.message;
+      this.armStopTimeout();
+    });
     child.on('exit', (code) => {
       if (code !== 0 || !this.finalMetadata) void this.terminateGenerator(child, directory);
     });
@@ -80,14 +126,27 @@ export class Acquisition {
         this.state.metadata = this.finalMetadata;
       } else {
         this.state.status = 'failed';
-        this.state.error ||= stderr.match(/Error: ([^\n]+)/)?.[1] || stderr.trim() || (disconnected && code === 0 ? 'Recorder IPC disconnected before completion was acknowledged' : `Recorder exited without completing (${signal || code})`);
+        this.state.error ||=
+          stderr.match(/Error: ([^\n]+)/)?.[1] ||
+          stderr.trim() ||
+          (disconnected && code === 0
+            ? 'Recorder IPC disconnected before completion was acknowledged'
+            : `Recorder exited without completing (${signal || code})`);
       }
       if (this.state.status === 'failed') {
         try {
           const saved = await inspect(directory);
           // A failed attempt to reopen an existing bundle must never alter it.
           if (saved.processes?.recorder === child.pid) {
-            const { fileBytes, completeRecords, trailingBytes, readableBytes, warnings, condition, ...metadata } = saved;
+            const {
+              fileBytes,
+              completeRecords,
+              trailingBytes,
+              readableBytes,
+              warnings,
+              condition,
+              ...metadata
+            } = saved;
             if (metadata.expectedFrames === null && this.state.metadata?.expectedFrames != null) {
               metadata.expectedFrames = this.state.metadata.expectedFrames;
               metadata.duration = metadata.expectedFrames / metadata.sampleRate;
@@ -101,7 +160,8 @@ export class Acquisition {
             await saveMetadata(directory, metadata);
           }
         } catch (error) {
-          if (this.state.metadata) this.state.error += `; failure metadata could not be saved: ${error instanceof Error ? error.message : error}`;
+          if (this.state.metadata)
+            this.state.error += `; failure metadata could not be saved: ${error instanceof Error ? error.message : error}`;
         }
       }
       this.child = null;
@@ -135,9 +195,12 @@ export class Acquisition {
 
   async terminateGenerator(child: ChildProcess, directory: string) {
     try {
-      const metadata = this.state.metadata ?? await readMetadata(directory);
-      if (metadata.processes && metadata.processes.recorder === child.pid) process.kill(metadata.processes.generator, 'SIGKILL');
-    } catch { /* Already exited, or startup never created a source. */ }
+      const metadata = this.state.metadata ?? (await readMetadata(directory));
+      if (metadata.processes && metadata.processes.recorder === child.pid)
+        process.kill(metadata.processes.generator, 'SIGKILL');
+    } catch {
+      /* Already exited, or startup never created a source. */
+    }
   }
 
   async shutdown() {

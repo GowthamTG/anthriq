@@ -11,11 +11,26 @@ let root, server, closed;
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'scope-library-browser-'));
-  server = spawn(process.execPath, ['server.ts'], { env: { ...process.env, PORT: '3102', SCOPE_RECORDINGS_DIR: root }, stdio: 'ignore' });
+  server = spawn(process.execPath, ['server.ts'], {
+    env: { ...process.env, PORT: '3102', SCOPE_RECORDINGS_DIR: root },
+    stdio: 'ignore',
+  });
   closed = once(server, 'close');
-  await expect.poll(async () => { try { return (await fetch(`${base}/api/state`)).status; } catch { return 0; } }).toBe(200);
+  await expect
+    .poll(async () => {
+      try {
+        return (await fetch(`${base}/api/state`)).status;
+      } catch {
+        return 0;
+      }
+    })
+    .toBe(200);
 });
-test.afterAll(async () => { server?.kill('SIGTERM'); await closed; await rm(root, { recursive: true, force: true }); });
+test.afterAll(async () => {
+  server?.kill('SIGTERM');
+  await closed;
+  await rm(root, { recursive: true, force: true });
+});
 
 test('empty library explains how to capture the first recording', async ({ page }) => {
   await page.goto(`${base}/recordings`);
@@ -23,20 +38,43 @@ test('empty library explains how to capture the first recording', async ({ page 
   await expect(page.getByRole('link', { name: 'Start a capture' })).toHaveAttribute('href', '/');
 });
 
-test('browse pages and inspect normal, incomplete, malformed, and missing recordings', async ({ page }) => {
+test('browse pages and inspect normal, incomplete, malformed, and missing recordings', async ({
+  page,
+}) => {
   const original = join(root, 'record-00');
-  await execute(process.execPath, ['core/cli.ts', 'record', original, '--seconds', '0.01', '--display-name', 'Baseline']);
+  await execute(process.execPath, [
+    'core/cli.ts',
+    'record',
+    original,
+    '--seconds',
+    '0.01',
+    '--display-name',
+    'Baseline',
+  ]);
   const metadata = JSON.parse(await readFile(join(original, 'metadata.json'), 'utf8'));
   for (let i = 1; i <= 10; i++) {
     const id = `record-${String(i).padStart(2, '0')}`;
     const directory = join(root, id);
     await mkdir(directory);
     await copyFile(join(original, 'frames.bin'), join(directory, 'frames.bin'));
-    await writeFile(join(directory, 'metadata.json'), JSON.stringify({ ...metadata, id, displayName: `Capture ${i}` }));
+    await writeFile(
+      join(directory, 'metadata.json'),
+      JSON.stringify({ ...metadata, id, displayName: `Capture ${i}` }),
+    );
   }
   const incomplete = join(root, 'record-01');
   await truncate(join(incomplete, 'frames.bin'), 2 * 136 + 3);
-  await writeFile(join(incomplete, 'metadata.json'), JSON.stringify({ ...metadata, id: 'record-01', displayName: 'Interrupted capture', status: 'failed', expectedFrames: null, duration: 88 }));
+  await writeFile(
+    join(incomplete, 'metadata.json'),
+    JSON.stringify({
+      ...metadata,
+      id: 'record-01',
+      displayName: 'Interrupted capture',
+      status: 'failed',
+      expectedFrames: null,
+      duration: 88,
+    }),
+  );
   await writeFile(join(root, 'record-02', 'metadata.json'), '{invalid');
   await page.goto(`${base}/recordings`);
   await expect(page.getByTestId('library-item')).toHaveCount(10);

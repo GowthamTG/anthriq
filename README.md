@@ -13,24 +13,25 @@ published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issu
 
 The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and
 their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01
-([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T07 are merged. T08 adds exact
-range and channel-subset inspection; T09 adds streamed CSV export.
+([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T09 are merged. T10 adds
+native-rate playback.
 
-**T01–T09 are implemented:** local launch, configurable continuous/timed acquisition, real
+**T01–T10 are implemented:** local launch, configurable continuous/timed acquisition, real
 telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection,
 bounded failure cleanup, overload/recovery diagnostics, independent streaming verification,
 disposable integrity scenarios, exact range/channel inspection, streamed CSV export, and CLI/browser
-checks. The remaining assessment tickets are still open; this is not the complete assessment
+checks. Finalized recordings can be replayed at their native frame rate with measured lag and a
+bounded trace. The remaining assessment tickets are still open; this is not the complete assessment
 submission.
 
 ## Stack and decision review
 
 Next.js/React with strict TypeScript and Tailwind CSS. The local Node server, acquisition owner,
-generator, recorder, storage reader, diagnostic generator, verifier, verification worker/owner, and
-CLI are TypeScript too. Node.js 24 runs their erasable types directly; no runtime transpiler or
-backend build is needed. Production builds use Next's supported Webpack option; Turbopack's PostCSS
-worker-port binding was blocked in the local build environment. Shared contracts live in
-`core/contracts.ts`. Playback remains a JavaScript draft for its later phase.
+generator, recorder, storage reader, playback engine/owner, diagnostic generator, verifier,
+verification worker/owner, and CLI are TypeScript too. Node.js 24 runs their erasable types
+directly; no runtime transpiler or backend build is needed. Production builds use Next's supported
+Webpack option; Turbopack's PostCSS worker-port binding was blocked in the local build environment.
+Shared contracts live in `core/contracts.ts`.
 
 The [decision audit](docs/decision-audit.md) reviews earlier choices and records corrections.
 [ADR 0003](docs/adr/0003-typescript-and-tailwind.md) amends the initial JavaScript/native-CSS choice
@@ -123,8 +124,8 @@ Continuous generation also checks that bound before encoding data. Requested tim
 overload a machine; the source retains its clock and accounts for loss through the bounded-credit
 policy. Short default and nondefault tests are not sustained-performance evidence.
 
-`playback` remains a development draft. Retrieval is available as streaming JSON-lines; CSV
-downloads are available from a validated recording-detail selection.
+Retrieval is available as streaming JSON-lines; CSV downloads are available from a validated
+recording-detail selection.
 
 ## Retrieve an exact range
 
@@ -150,6 +151,33 @@ CSV columns are `original_frame_index`, `time_seconds`, then `channel_<n>` in re
 JSON-lines preserve gaps and duplicate observations exactly. Frame-major storage still reads every
 channel value within matching records, so selecting K of C channels costs roughly C/K value-byte
 amplification plus frame-index bytes.
+
+## Play a recording at its native rate
+
+Select a completed recording in **Recordings**. It opens paused with one global playback session;
+opening another recording closes the previous reader. **Play at 1×** emits the stored observations
+against a monotonic clock at the recorded frame rate. **Restart** explicitly resets an ended or
+failed session to paused position zero; Play at end never loops.
+
+The detail view reports the next original frame, frame and scalar-sample counts, active elapsed
+time, current and maximum lag, and skipped adjacent duplicates. Missing indices consume their
+original timeline interval instead of compressing time. The Canvas trace contains only a bounded
+decimated view of accepted stored observations; full batches stay in the playback sink and are never
+sent through browser state.
+
+```sh
+# Measure native playback without materializing output.
+npm run cli -- playback recordings/example
+
+# Stream every accepted observation as JSON Lines. stdout backpressure may create visible lag.
+npm run cli -- playback recordings/example --output jsonl
+```
+
+Playback accepts completed recordings with a confirmed expected extent, including recordings that
+declare loss. It does not require an integrity PASS. Each full-data batch is awaited before position
+is committed, is capped at 256 frames and approximately 64 KiB, and each scheduler turn examines at
+most 4,096 physical observations. The browser preview retains at most 256 decimated points from the
+first four channels. Pause, seek, speed changes, and channel selection belong to T11.
 
 ## Verify a recording
 
@@ -254,7 +282,7 @@ npm run test:browser
 ```
 
 On Linux, use `npx playwright install --with-deps chromium` when system browser dependencies are
-absent. Browser tests start their own production servers on ports 3100–3104 and use isolated
+absent. Browser tests start their own production servers on ports 3100–3106 and use isolated
 temporary recording locations. Core tests launch real processes and inspect real files, including an
 independently calculated float32 reference value. Test artifacts and recordings are excluded from
 Git.
@@ -267,16 +295,18 @@ Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01
 [T05 overload evidence](docs/evidence/t05/README.md),
 [T06 verification evidence](docs/evidence/t06/README.md),
 [T07 diagnostic evidence](docs/evidence/t07/README.md),
-[T08 range evidence](docs/evidence/t08/README.md), and
-[T09 export evidence](docs/evidence/t09/README.md) distinguish completed local checks from the later
-sustained-performance work.
+[T08 range evidence](docs/evidence/t08/README.md),
+[T09 export evidence](docs/evidence/t09/README.md), and
+[T10 playback evidence](docs/evidence/t10/README.md) distinguish completed local checks from the
+later sustained-performance work.
 
 ## Phase boundary
 
 The implemented phases include configurable acquisition, inspection, range retrieval, CSV export,
-overload recovery, independent verification, and disposable corruption demonstrations. Live traces,
-playback controls, extended stress experiments, the one-hour benchmark, final video, and hosting
-remain in subsequent tickets. No waveform or integrity result is fabricated in the interface.
+native-rate playback, overload recovery, independent verification, and disposable corruption
+demonstrations. Pause/seek/speed/channel playback controls, live acquisition traces, extended stress
+experiments, the one-hour benchmark, final video, and hosting remain in subsequent tickets. No
+waveform or integrity result is fabricated in the interface.
 
 ## Agreed direction
 
@@ -284,8 +314,10 @@ remain in subsequent tickets. No waveform or integrity result is fabricated in t
   budget.
 - Original frame indices, float32 channel values, JSON metadata, and explicit overload-loss
   accounting.
-- Streaming retrieval and verification, with precise playback controls in later phases.
-- A graphite instrument interface with real recording metrics; live waveforms are scheduled for T12.
+- Streaming retrieval and verification, with measured native playback now and precise controls in
+  T11.
+- A graphite instrument interface with a bounded playback trace and real recording metrics; live
+  acquisition waveforms are scheduled for T12.
 - One-command local execution and a short demonstration video as the primary delivery; public
   hosting is last priority.
 

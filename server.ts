@@ -13,8 +13,13 @@ import {
 import { listRecordings, recordingId } from './core/library.ts';
 import { config, ConfigurationError } from './core/config.ts';
 import { Verification } from './core/verification.ts';
-import { DIAGNOSTIC_SCENARIOS, type DiagnosticScenario } from './core/contracts.ts';
+import {
+  DIAGNOSTIC_SCENARIOS,
+  type DiagnosticScenario,
+  type PlaybackCommand,
+} from './core/contracts.ts';
 import { csvLines } from './core/export.ts';
+import { PlaybackOwner } from './core/playback.ts';
 
 const dev = process.argv.includes('--dev');
 const port = Number(process.env.PORT || 3000);
@@ -22,6 +27,7 @@ const hostname = '127.0.0.1';
 const root = resolve(process.env.SCOPE_RECORDINGS_DIR || 'recordings');
 const acquisition = new Acquisition(root);
 const verification = new Verification(root);
+const playback = new PlaybackOwner(root);
 const app = next({ dev, hostname, port });
 await app.prepare();
 const handle = app.getRequestHandler();
@@ -32,6 +38,9 @@ acquisition.subscribe(() => {
   revision++;
 });
 verification.subscribe(() => {
+  revision++;
+});
+playback.subscribe(() => {
   revision++;
 });
 const json = (res: ServerResponse, status: number, value: unknown) => {
@@ -93,6 +102,7 @@ function event(res: ServerResponse) {
   }
   res.write(`event: state\ndata: ${JSON.stringify(acquisition.snapshot())}\n\n`);
   res.write(`event: verification\ndata: ${JSON.stringify(verification.snapshot())}\n\n`);
+  res.write(`event: playback\ndata: ${JSON.stringify(playback.snapshot())}\n\n`);
 }
 
 const updates = setInterval(() => {
@@ -139,6 +149,8 @@ const server = createServer(async (req, res) => {
       return json(res, 200, acquisition.snapshot());
     if (req.method === 'GET' && url.pathname === '/api/verification')
       return json(res, 200, verification.snapshot());
+    if (req.method === 'GET' && url.pathname === '/api/playback')
+      return json(res, 200, playback.snapshot());
     if (req.method === 'GET' && url.pathname === '/api/events') {
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -156,6 +168,25 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/acquisitions') {
       const settings = await readConfiguration(req);
       return json(res, 202, acquisition.start(settings));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/playback') {
+      const body = await readJson(req);
+      if (!body || typeof body !== 'object' || Array.isArray(body))
+        return json(res, 400, { error: 'Provide a playback action and recordingId' });
+      const command = body as Partial<PlaybackCommand> & Record<string, unknown>;
+      if (
+        !['open', 'play', 'restart'].includes(String(command.action)) ||
+        typeof command.recordingId !== 'string' ||
+        Object.keys(command).some((key) => !['action', 'recordingId'].includes(key))
+      )
+        return json(res, 400, { error: 'Provide only a supported action and recordingId' });
+      if (!recordingId(command.recordingId))
+        return json(res, 404, { error: 'Recording not found' });
+      const state =
+        command.action === 'open'
+          ? await playback.open(command.recordingId)
+          : await playback.control(command.recordingId, command.action as 'play' | 'restart');
+      return json(res, 200, state);
     }
     if (req.method === 'POST' && url.pathname === '/api/verifications') {
       const body = await readJson(req);
@@ -320,7 +351,7 @@ async function shutdown() {
   clearInterval(heartbeat);
   for (const { res } of clients) res.end();
   server.close();
-  await Promise.all([acquisition.shutdown(), verification.shutdown()]);
+  await Promise.all([acquisition.shutdown(), verification.shutdown(), playback.shutdown()]);
   await app.close();
   server.closeAllConnections();
 }

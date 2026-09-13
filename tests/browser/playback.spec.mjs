@@ -1,0 +1,133 @@
+import { test, expect } from '@playwright/test';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import { once } from 'node:events';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const execute = promisify(execFile);
+const base = 'http://127.0.0.1:3106';
+let root, server, closed;
+test.describe.configure({ mode: 'serial' });
+
+async function record(id, seconds) {
+  await execute(process.execPath, [
+    'core/cli.ts',
+    'record',
+    join(root, id),
+    '--channels',
+    '2',
+    '--sample-rate',
+    '20',
+    '--seconds',
+    String(seconds),
+    '--display-name',
+    id === 'ui-recording' ? 'Playback reference' : 'API reference',
+  ]);
+}
+
+test.beforeAll(async () => {
+  root = await mkdtemp(join(tmpdir(), 'scope-playback-browser-'));
+  await record('api-recording', 0.3);
+  await record('ui-recording', 0.5);
+  await record('incomplete-recording', 0.1);
+  const metadataPath = join(root, 'incomplete-recording', 'metadata.json');
+  const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+  await writeFile(
+    metadataPath,
+    JSON.stringify({ ...metadata, status: 'failed', expectedFrames: null, duration: null }),
+  );
+  server = spawn(process.execPath, ['server.ts'], {
+    env: { ...process.env, PORT: '3106', SCOPE_RECORDINGS_DIR: root },
+    stdio: 'ignore',
+  });
+  closed = once(server, 'close');
+  await expect
+    .poll(async () => {
+      try {
+        return (await fetch(`${base}/api/state`)).status;
+      } catch {
+        return 0;
+      }
+    })
+    .toBe(200);
+});
+
+test.afterAll(async () => {
+  server?.kill('SIGTERM');
+  await closed;
+  await rm(root, { recursive: true, force: true });
+});
+
+const post = (body) =>
+  fetch(`${base}/api/playback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+test('playback HTTP commands validate input and preserve one active session', async () => {
+  expect(await (await fetch(`${base}/api/playback`)).json()).toMatchObject({
+    status: 'idle',
+    recordingId: null,
+  });
+  expect((await post({ action: 'open' })).status).toBe(400);
+  expect((await post({ action: 'open', recordingId: 'api-recording', extra: true })).status).toBe(
+    400,
+  );
+  expect((await post({ action: 'pause', recordingId: 'api-recording' })).status).toBe(400);
+  expect((await post({ action: 'open', recordingId: 'missing' })).status).toBe(404);
+  expect((await post({ action: 'open', recordingId: 'incomplete-recording' })).status).toBe(409);
+
+  const opened = await post({ action: 'open', recordingId: 'api-recording' });
+  expect(opened.status).toBe(200);
+  expect(await opened.json()).toMatchObject({ status: 'paused', recordingId: 'api-recording' });
+  expect((await post({ action: 'play', recordingId: 'ui-recording' })).status).toBe(409);
+  expect((await post({ action: 'play', recordingId: 'api-recording' })).status).toBe(200);
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).emittedFrames)
+    .toBeGreaterThan(0);
+  const before = await (await fetch(`${base}/api/playback`)).json();
+  const same = await (await post({ action: 'open', recordingId: 'api-recording' })).json();
+  expect(same.emittedFrames).toBeGreaterThanOrEqual(before.emittedFrames);
+  expect(same.status).not.toBe('paused');
+});
+
+test('recording detail plays real observations once and restarts paused at zero', async ({
+  page,
+}) => {
+  await page.goto(`${base}/recordings?id=ui-recording`);
+  await expect(page.getByRole('heading', { name: 'Recording details' })).toBeVisible();
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await expect(page.getByRole('button', { name: 'Play at 1×' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Play at 1×' }).click();
+  await expect(page.getByTestId('playback-status')).toHaveText('Ended', { timeout: 3000 });
+  await expect(page.getByTestId('playback-metrics')).toContainText('10');
+  await expect(page.getByTestId('playback-metrics')).toContainText('20');
+  await expect(page.getByTestId('playback-latest-frame')).not.toContainText('—');
+  await expect(page.getByTestId('playback-trace')).toBeVisible();
+
+  const ended = await (await fetch(`${base}/api/playback`)).json();
+  expect(ended).toMatchObject({ status: 'ended', position: 10, emittedFrames: 10 });
+  const repeated = await (await post({ action: 'play', recordingId: 'ui-recording' })).json();
+  expect(repeated).toMatchObject({ status: 'ended', position: 10, emittedFrames: 10 });
+
+  if (process.env.SCOPE_CAPTURE_T10_EVIDENCE) {
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t10/ended.png'),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t10/narrow-ended.png'),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+
+  await page.getByRole('button', { name: 'Restart' }).click();
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await expect(page.getByTestId('playback-metrics')).toContainText('0 / 10');
+  await expect(page.getByTestId('playback-latest-frame')).toContainText('—');
+});

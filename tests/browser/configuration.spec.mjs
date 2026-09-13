@@ -1,12 +1,30 @@
 import { test, expect } from '@playwright/test';
 
-test('invalid service settings preserve the current acquisition and expose field errors', async ({ page }) => {
+test('invalid service settings preserve the current acquisition and expose field errors', async ({
+  page,
+}) => {
   await page.goto('/');
   const before = await page.evaluate(async () => (await fetch('/api/state')).json());
-  for (const input of [{ channels: 0 }, { seed: null }, { seed: true }, { seconds: 1e300 }, { channelz: 8 }, { displayName: 42 }, []]) {
-    const result = await page.evaluate(async input => {
-      const response = await fetch('/api/acquisitions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-      return { status: response.status, body: await response.json(), state: await (await fetch('/api/state')).json() };
+  for (const input of [
+    { channels: 0 },
+    { seed: null },
+    { seed: true },
+    { seconds: 1e300 },
+    { channelz: 8 },
+    { displayName: 42 },
+    [],
+  ]) {
+    const result = await page.evaluate(async (input) => {
+      const response = await fetch('/api/acquisitions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      return {
+        status: response.status,
+        body: await response.json(),
+        state: await (await fetch('/api/state')).json(),
+      };
     }, input);
     expect(result.status).toBe(400);
     expect(Object.keys(result.body.fields).length).toBeGreaterThan(0);
@@ -14,7 +32,9 @@ test('invalid service settings preserve the current acquisition and expose field
   }
 });
 
-test('configure a timed recording, correct a field error, and inspect its actual settings', async ({ page }) => {
+test('configure a timed recording, correct a field error, and inspect its actual settings', async ({
+  page,
+}) => {
   await page.goto('/');
   await page.getByLabel('Recording name').fill('Modulation bench');
   await page.getByLabel('Channels', { exact: true }).fill('0');
@@ -22,7 +42,10 @@ test('configure a timed recording, correct a field error, and inspect its actual
   await page.getByLabel('Seed', { exact: true }).fill('123');
   await page.getByLabel('Duration', { exact: true }).fill('2');
   await page.getByRole('button', { name: 'Start acquisition' }).click();
-  await expect(page.getByLabel('Channels', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Channels', { exact: true })).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
   await expect(page.getByLabel('Channels', { exact: true })).toHaveValue('0');
   await expect(page.getByLabel('Recording name')).toHaveValue('Modulation bench');
   await expect(page.getByRole('button', { name: 'Start acquisition' })).toBeEnabled();

@@ -16,7 +16,8 @@ try {
     if (args[i].startsWith('--')) {
       const option = args[i];
       const value = args[++i];
-      if (value === undefined || value.startsWith('--')) throw new Error(`Missing value for ${option}`);
+      if (value === undefined || value.startsWith('--'))
+        throw new Error(`Missing value for ${option}`);
       const key = option.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
       if (key in options) throw new Error(`Duplicate option: ${option}`);
       options[key] = value;
@@ -26,8 +27,18 @@ try {
     }
   }
   if (command === 'list') {
-    for (const key of Object.keys(options)) if (!['limit', 'cursor'].includes(key)) throw new Error(`Unknown list option: ${key}`);
-    console.log(JSON.stringify(await listRecordings(directory || resolve(process.env.SCOPE_RECORDINGS_DIR || 'recordings'), options), null, 2));
+    for (const key of Object.keys(options))
+      if (!['limit', 'cursor'].includes(key)) throw new Error(`Unknown list option: ${key}`);
+    console.log(
+      JSON.stringify(
+        await listRecordings(
+          directory || resolve(process.env.SCOPE_RECORDINGS_DIR || 'recordings'),
+          options,
+        ),
+        null,
+        2,
+      ),
+    );
   } else if (command === 'record') {
     directory ??= resolve('recordings', new Date().toISOString().replace(/[:.]/g, '-'));
     const acquisition = new Acquisition();
@@ -38,8 +49,16 @@ try {
     const result = await acquisition.finished;
     process.off('SIGINT', interrupt);
     process.off('SIGTERM', interrupt);
-    if (!result || result.status === 'failed' || !result.metadata) throw new Error(result?.error || 'Recording did not complete');
-    console.log(JSON.stringify({ recording: directory, status: result.status, frames: result.metadata.recordedFrames, droppedFrames: result.metadata.droppedFrames }));
+    if (!result || result.status === 'failed' || !result.metadata)
+      throw new Error(result?.error || 'Recording did not complete');
+    console.log(
+      JSON.stringify({
+        recording: directory,
+        status: result.status,
+        frames: result.metadata.recordedFrames,
+        droppedFrames: result.metadata.droppedFrames,
+      }),
+    );
   } else if (!directory && ['verify', 'inspect', 'retrieve', 'playback'].includes(command)) {
     throw new Error('A recording directory is required');
   } else if (command === 'verify') {
@@ -54,20 +73,43 @@ try {
     }
   } else if (command === 'inspect') console.log(JSON.stringify(await inspect(directory!), null, 2));
   else if (command === 'retrieve') {
-    for (const key of Object.keys(options)) if (!['channels', 'start', 'end', 'startSeconds', 'endSeconds', 'prefix'].includes(key)) throw new Error(`Unknown retrieve option: ${key}`);
-    const number = (key: string) => options[key] === undefined ? undefined : Number(options[key]);
+    for (const key of Object.keys(options))
+      if (!['channels', 'start', 'end', 'startSeconds', 'endSeconds', 'prefix'].includes(key))
+        throw new Error(`Unknown retrieve option: ${key}`);
+    const number = (key: string) => (options[key] === undefined ? undefined : Number(options[key]));
     const prefix = options.prefix === undefined ? false : options.prefix === 'true';
-    if (options.prefix !== undefined && !['true', 'false'].includes(options.prefix)) throw new Error('Prefix must be true or false');
-    const query = { channels: parseChannelList(options.channels), start: number('start'), end: number('end'), startSeconds: number('startSeconds'), endSeconds: number('endSeconds'), prefix };
-    for await (const frame of readFrames(directory!, query)) if (!process.stdout.write(JSON.stringify(frame) + '\n')) await once(process.stdout, 'drain');
+    if (options.prefix !== undefined && !['true', 'false'].includes(options.prefix))
+      throw new Error('Prefix must be true or false');
+    const query = {
+      channels: parseChannelList(options.channels),
+      start: number('start'),
+      end: number('end'),
+      startSeconds: number('startSeconds'),
+      endSeconds: number('endSeconds'),
+      prefix,
+    };
+    for await (const frame of readFrames(directory!, query))
+      if (!process.stdout.write(JSON.stringify(frame) + '\n')) await once(process.stdout, 'drain');
   } else if (command === 'playback') {
-    const playback = await new Playback(directory!, (frames: Frame[]) => { if (options.output === 'jsonl') for (const f of frames) process.stdout.write(JSON.stringify(f) + '\n'); }).init();
+    const playback = await new Playback(directory!, (frames: Frame[]) => {
+      if (options.output === 'jsonl')
+        for (const f of frames) process.stdout.write(JSON.stringify(f) + '\n');
+    }).init();
     if (options.speed) playback.setSpeed(Number(options.speed));
     if (options.start) playback.seek(Number(options.start));
-    playback.onStatus = (status: { playing: boolean }) => { if (!status.playing) { console.error(JSON.stringify(status)); } };
+    playback.onStatus = (status: { playing: boolean }) => {
+      if (!status.playing) {
+        console.error(JSON.stringify(status));
+      }
+    };
     process.on('SIGINT', () => playback.close());
     playback.play();
   } else {
-    console.log('SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42 --display-name "Bench run"\n    Optional: --buffer-bytes 4194304 --write-delay-ms 0\n    Temporary diagnostic: --stall-after-seconds 0.5 --stall-for-ms 1000 (off by default)\n    --seconds 0 means until stopped; settings bounds are documented in README.md.\n  list [root] --limit 10 --cursor <last-recording-id>\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> --speed 1\nSee README.md for range, playback and overload behavior.');
+    console.log(
+      'SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42 --display-name "Bench run"\n    Optional: --buffer-bytes 4194304 --write-delay-ms 0\n    Temporary diagnostic: --stall-after-seconds 0.5 --stall-for-ms 1000 (off by default)\n    --seconds 0 means until stopped; settings bounds are documented in README.md.\n  list [root] --limit 10 --cursor <last-recording-id>\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> --speed 1\nSee README.md for range, playback and overload behavior.',
+    );
   }
-} catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = command === 'verify' ? 2 : 1; }
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = command === 'verify' ? 2 : 1;
+}

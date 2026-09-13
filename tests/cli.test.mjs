@@ -10,7 +10,7 @@ import { join } from 'node:path';
 const execute = promisify(execFile);
 const cli = (...args) => execute(process.execPath, ['core/cli.ts', ...args], { timeout: 15000 });
 
-test('a real two-second acquisition is clock-paced, lossless, and independently readable', async t => {
+test('a real two-second acquisition is clock-paced, lossless, and independently readable', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'scope-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, 'nominal');
@@ -36,24 +36,42 @@ test('a real two-second acquisition is clock-paced, lossless, and independently 
   assert.equal(bytes.readFloatLE(8), -0.7823104858398438);
   const result = JSON.parse((await cli('verify', directory)).stdout);
   assert.equal(result.result, 'PASS');
-  assert.deepEqual([result.discrepancies.missing.samples, result.discrepancies.duplicated.samples, result.discrepancies.incorrect.samples], [0, 0, 0]);
+  assert.deepEqual(
+    [
+      result.discrepancies.missing.samples,
+      result.discrepancies.duplicated.samples,
+      result.discrepancies.incorrect.samples,
+    ],
+    [0, 0, 0],
+  );
 });
 
-test('interrupting continuous capture drains data and exits both owned processes', async t => {
+test('interrupting continuous capture drains data and exits both owned processes', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'scope-stop-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, 'manual');
-  const child = spawn(process.execPath, ['core/cli.ts', 'record', directory], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['core/cli.ts', 'record', directory], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   const closed = once(child, 'close');
-  t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
+  t.after(() => {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  });
   let stderr = '';
-  child.stderr.on('data', data => { stderr += data; });
+  child.stderr.on('data', (data) => {
+    stderr += data;
+  });
   const deadline = Date.now() + 5000;
   while (true) {
-    try { await readFile(join(directory, 'metadata.json')); break; }
-    catch { if (Date.now() > deadline) assert.fail('recording did not start'); await new Promise(r => setTimeout(r, 10)); }
+    try {
+      await readFile(join(directory, 'metadata.json'));
+      break;
+    } catch {
+      if (Date.now() > deadline) assert.fail('recording did not start');
+      await new Promise((r) => setTimeout(r, 10));
+    }
   }
-  await new Promise(r => setTimeout(r, 200));
+  await new Promise((r) => setTimeout(r, 200));
   child.kill('SIGINT');
   child.kill('SIGINT');
   const [code] = await closed;
@@ -63,15 +81,16 @@ test('interrupting continuous capture drains data and exits both owned processes
   assert.ok(metadata.recordedFrames > 0);
   assert.equal(metadata.recordedFrames, metadata.expectedFrames);
   assert.equal(metadata.trailingBytes, 0);
-  for (const pid of Object.values(metadata.processes)) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+  for (const pid of Object.values(metadata.processes))
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });
 
-test('a recording startup failure exits clearly without claiming completion', async t => {
+test('a recording startup failure exits clearly without claiming completion', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'scope-failure-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, 'exists');
   await cli('record', directory, '--seconds', '0.05');
-  await assert.rejects(cli('record', directory, '--seconds', '0.05'), error => {
+  await assert.rejects(cli('record', directory, '--seconds', '0.05'), (error) => {
     assert.equal(error.code, 1);
     assert.match(error.stderr, /EEXIST/);
     assert.doesNotMatch(error.stdout, /completed/);

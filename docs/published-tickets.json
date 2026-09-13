@@ -18,9 +18,7 @@
       "id": 5431754162,
       "title": "[T02] Configure acquisitions and reproduce exact signal values",
       "url": "https://github.com/GowthamTG/anthriq/issues/3",
-      "blockers": [
-        2
-      ],
+      "blockers": [2],
       "source": "docs/tickets/02-configure-acquisitions-and-reproduce-exact-signal-values.md",
       "nativeDependenciesVerified": true
     },
@@ -30,9 +28,7 @@
       "id": 5431754305,
       "title": "[T03] Browse self-describing recordings and inspect incomplete prefixes",
       "url": "https://github.com/GowthamTG/anthriq/issues/4",
-      "blockers": [
-        2
-      ],
+      "blockers": [2],
       "source": "docs/tickets/03-browse-self-describing-recordings-and-inspect-incomplete-prefixes.md",
       "nativeDependenciesVerified": true
     },
@@ -42,9 +38,7 @@
       "id": 5431754445,
       "title": "[T04] Stop safely and surface process or disk failures",
       "url": "https://github.com/GowthamTG/anthriq/issues/5",
-      "blockers": [
-        2
-      ],
+      "blockers": [2],
       "source": "docs/tickets/04-stop-safely-and-surface-process-or-disk-failures.md",
       "nativeDependenciesVerified": true
     },
@@ -54,10 +48,7 @@
       "id": 5431754586,
       "title": "[T05] Demonstrate bounded overload loss and recorder recovery",
       "url": "https://github.com/GowthamTG/anthriq/issues/6",
-      "blockers": [
-        3,
-        5
-      ],
+      "blockers": [3, 5],
       "source": "docs/tickets/05-demonstrate-bounded-overload-loss-and-recorder-recovery.md",
       "nativeDependenciesVerified": true
     },
@@ -67,9 +58,7 @@
       "id": 5431754720,
       "title": "[T06] Verify recordings through the CLI and workbench",
       "url": "https://github.com/GowthamTG/anthriq/issues/7",
-      "blockers": [
-        3
-      ],
+      "blockers": [3],
       "source": "docs/tickets/06-verify-recordings-through-the-cli-and-workbench.md",
       "nativeDependenciesVerified": true
     },
@@ -79,10 +68,7 @@
       "id": 5431754865,
       "title": "[T07] Demonstrate integrity failures using disposable recordings",
       "url": "https://github.com/GowthamTG/anthriq/issues/8",
-      "blockers": [
-        4,
-        7
-      ],
+      "blockers": [4, 7],
       "source": "docs/tickets/07-demonstrate-integrity-failures-using-disposable-recordings.md",
       "nativeDependenciesVerified": true
     },
@@ -92,10 +78,7 @@
       "id": 5431755044,
       "title": "[T08] Inspect exact time ranges and channel subsets",
       "url": "https://github.com/GowthamTG/anthriq/issues/9",
-      "blockers": [
-        3,
-        4
-      ],
+      "blockers": [3, 4],
       "source": "docs/tickets/08-inspect-exact-time-ranges-and-channel-subsets.md",
       "nativeDependenciesVerified": true
     },
@@ -105,9 +88,7 @@
       "id": 5431755217,
       "title": "[T09] Export selected observations as CSV and JSON-lines",
       "url": "https://github.com/GowthamTG/anthriq/issues/10",
-      "blockers": [
-        9
-      ],
+      "blockers": [9],
       "source": "docs/tickets/09-export-selected-observations-as-csv-and-json-lines.md",
       "nativeDependenciesVerified": true
     },
@@ -117,9 +98,7 @@
       "id": 5431755370,
       "title": "[T10] Play a recording at its native rate",
       "url": "https://github.com/GowthamTG/anthriq/issues/11",
-      "blockers": [
-        9
-      ],
+      "blockers": [9],
       "source": "docs/tickets/10-play-a-recording-at-its-native-rate.md",
       "nativeDependenciesVerified": true
     },
@@ -129,9 +108,7 @@
       "id": 5431755527,
       "title": "[T11] Pause, seek, and change playback speed without losing position",
       "url": "https://github.com/GowthamTG/anthriq/issues/12",
-      "blockers": [
-        11
-      ],
+      "blockers": [11],
       "source": "docs/tickets/11-pause-seek-and-change-playback-speed-without-losing-position.md",
       "nativeDependenciesVerified": true
     },
@@ -141,9 +118,7 @@
       "id": 5431755674,
       "title": "[T12] Watch live channel traces with measured acquisition health",
       "url": "https://github.com/GowthamTG/anthriq/issues/13",
-      "blockers": [
-        3
-      ],
+      "blockers": [3],
       "source": "docs/tickets/12-watch-live-channel-traces-with-measured-acquisition-health.md",
       "nativeDependenciesVerified": true
     },
@@ -153,10 +128,7 @@
       "id": 5431755814,
       "title": "[T13] Keep acquisition independent of slow or disconnected browsers",
       "url": "https://github.com/GowthamTG/anthriq/issues/14",
-      "blockers": [
-        5,
-        13
-      ],
+      "blockers": [5, 13],
       "source": "docs/tickets/13-keep-acquisition-independent-of-slow-or-disconnected-browsers.md",
       "nativeDependenciesVerified": true
     },
@@ -166,12 +138,7 @@
       "id": 5431755958,
       "title": "[T14] Complete the accessible instrument workflow across all views",
       "url": "https://github.com/GowthamTG/anthriq/issues/15",
-      "blockers": [
-        8,
-        10,
-        12,
-        14
-      ],
+      "blockers": [8, 10, 12, 14],
       "source": "docs/tickets/14-complete-the-accessible-instrument-workflow-across-all-views.md",
       "nativeDependenciesVerified": true
     },
@@ -181,11 +148,7 @@
       "id": 5431756091,
       "title": "[T15] Prove sustained zero-loss acquisition and bounded memory",
       "url": "https://github.com/GowthamTG/anthriq/issues/16",
-      "blockers": [
-        6,
-        7,
-        14
-      ],
+      "blockers": [6, 7, 14],
       "source": "docs/tickets/15-prove-sustained-zero-loss-acquisition-and-bounded-memory.md",
       "nativeDependenciesVerified": true
     },
@@ -195,11 +158,7 @@
       "id": 5431756241,
       "title": "[T16] Measure seeking, export, playback, and verification on a long recording",
       "url": "https://github.com/GowthamTG/anthriq/issues/17",
-      "blockers": [
-        10,
-        12,
-        16
-      ],
+      "blockers": [10, 12, 16],
       "source": "docs/tickets/16-measure-seeking-export-playback-and-verification-on-a-long-recording.md",
       "nativeDependenciesVerified": true
     },
@@ -209,10 +168,7 @@
       "id": 5431756379,
       "title": "[T17] Deliver a reproducible repository and complete demonstration video",
       "url": "https://github.com/GowthamTG/anthriq/issues/18",
-      "blockers": [
-        15,
-        17
-      ],
+      "blockers": [15, 17],
       "source": "docs/tickets/17-deliver-a-reproducible-repository-and-complete-demonstration-video.md",
       "nativeDependenciesVerified": true
     },
@@ -222,9 +178,7 @@
       "id": 5431756501,
       "title": "[T18] Optionally publish an easy-to-run public demo after local delivery",
       "url": "https://github.com/GowthamTG/anthriq/issues/19",
-      "blockers": [
-        18
-      ],
+      "blockers": [18],
       "source": "docs/tickets/18-optionally-publish-an-easy-to-run-public-demo-after-local-delivery.md",
       "nativeDependenciesVerified": true
     }

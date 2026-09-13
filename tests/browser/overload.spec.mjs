@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
-test('opt into a temporary stall, see loss and recovery, and inspect completed-with-loss', async ({ page }) => {
+test('opt into a temporary stall, see loss and recovery, and inspect completed-with-loss', async ({
+  page,
+}) => {
   await page.goto('/');
   await page.getByLabel('Channels', { exact: true }).fill('32');
   await page.getByLabel('Sample rate', { exact: true }).fill('4000');
@@ -13,7 +15,9 @@ test('opt into a temporary stall, see loss and recovery, and inspect completed-w
   await expect(page.getByTestId('recorder-stall')).toHaveText('Recorder stalled');
   await expect(page.getByTestId('loss-state')).toContainText('Loss detected');
   await expect(page.getByTestId('recorder-stall')).toHaveText('Recorder resumed');
-  await expect(page.getByTestId('acquisition-state')).toHaveText('Completed with loss', { timeout: 8000 });
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Completed with loss', {
+    timeout: 8000,
+  });
   await expect(page.getByTestId('lost-frames')).not.toHaveText('0');
   await expect(page.getByTestId('source-offered')).not.toHaveText('—');
   await page.getByRole('button', { name: 'Inspect recording' }).click();

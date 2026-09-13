@@ -1,4 +1,14 @@
-import type { RecordingMetadata, RecorderStall, GeneratorMetrics, Frame, Batch, SourceDone, GeneratorMessage, RecorderMessage, RecorderCommand } from './contracts.ts';
+import type {
+  RecordingMetadata,
+  RecorderStall,
+  GeneratorMetrics,
+  Frame,
+  Batch,
+  SourceDone,
+  GeneratorMessage,
+  RecorderMessage,
+  RecorderCommand,
+} from './contracts.ts';
 import { fork } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { mkdir, open, stat } from 'node:fs/promises';
@@ -12,28 +22,87 @@ await mkdir(directory, { recursive: true });
 const file = await open(join(directory, 'frames.bin'), 'wx');
 const lossFile = await open(join(directory, 'losses.jsonl'), 'wx');
 const measurements = await open(join(directory, 'metrics.jsonl'), 'wx');
-const metadata: RecordingMetadata = { format: 'SCOPE/1', id: directory.split('/').at(-1)!, ...settings, status: 'recording', startedAt: new Date().toISOString(), expectedFrames: null, recordedFrames: 0, totalSamples: 0, duration: null, sampleType: 'float32', bytesPerSample: 4, byteOrder: 'little-endian', layout: 'uint64 frame index, then interleaved channel values', waveform: WAVEFORM, recordBytes: stride(settings.channels) };
+const metadata: RecordingMetadata = {
+  format: 'SCOPE/1',
+  id: directory.split('/').at(-1)!,
+  ...settings,
+  status: 'recording',
+  startedAt: new Date().toISOString(),
+  expectedFrames: null,
+  recordedFrames: 0,
+  totalSamples: 0,
+  duration: null,
+  sampleType: 'float32',
+  bytesPerSample: 4,
+  byteOrder: 'little-endian',
+  layout: 'uint64 frame index, then interleaved channel values',
+  waveform: WAVEFORM,
+  recordBytes: stride(settings.channels),
+};
 await saveMetadata(directory, metadata);
-const generator = fork(new URL('./generator.ts', import.meta.url), [JSON.stringify(settings)], { serialization: 'advanced', stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+const generator = fork(new URL('./generator.ts', import.meta.url), [JSON.stringify(settings)], {
+  serialization: 'advanced',
+  stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+});
 metadata.processes = { recorder: process.pid, generator: generator.pid! };
 // Install before any await so even a very early exit is observed.
-const generatorClosed = new Promise<number | null>(resolve => generator.once('close', code => resolve(code)));
+const generatorClosed = new Promise<number | null>((resolve) =>
+  generator.once('close', (code) => resolve(code)),
+);
 const cancelled = new AbortController();
 let stopTimer: ReturnType<typeof setTimeout> | undefined;
 const queue: Batch[] = [];
-let pendingCreditBytes = 0, creditSending = false;
-let draining = false, finalMessage: SourceDone | undefined, finalized = false, failing = false;
-let recorded = 0, nextExpected = 0, dropped = 0, queueBytes = 0, peakQueueBytes = 0, statusPending = false, metricsBusy = false;
-let generatorMetrics: Partial<GeneratorMetrics> = {}, preview: Frame[] = [], lastPreview = 0, lastMeasurement = 0;
+let pendingCreditBytes = 0,
+  creditSending = false;
+let draining = false,
+  finalMessage: SourceDone | undefined,
+  finalized = false,
+  failing = false;
+let recorded = 0,
+  nextExpected = 0,
+  dropped = 0,
+  queueBytes = 0,
+  peakQueueBytes = 0,
+  statusPending = false,
+  metricsBusy = false;
+let generatorMetrics: Partial<GeneratorMetrics> = {},
+  preview: Frame[] = [],
+  lastPreview = 0,
+  lastMeasurement = 0;
 let sourceStarted: number | undefined;
 let recorderStall: RecorderStall = settings.stallForMs ? 'scheduled' : 'off';
 const started = performance.now();
-const stats = (): Extract<RecorderMessage, { type: 'status' }> => ({ type: 'status', recorderStall, id: metadata.id, status: metadata.status, channels: settings.channels, sampleRate: settings.sampleRate, recordedFrames: recorded, totalSamples: recorded * settings.channels, droppedFrames: dropped, lostSamples: dropped * settings.channels, fileBytes: recorded * metadata.recordBytes, queueBytes, peakQueueBytes, bufferBytes: settings.bufferBytes, recorderRssBytes: process.memoryUsage().rss, elapsedSeconds: generatorMetrics.elapsedSeconds || (performance.now() - started) / 1000, generator: generatorMetrics, preview });
-const send = (message: RecorderMessage) => { if (process.connected) process.send!(message, err => { if (err) requestStop(); }); };
-const deliver = (message: RecorderMessage) => new Promise<void>((resolve, reject) => {
-  if (!process.connected) return resolve();
-  process.send!(message, error => error ? reject(error) : resolve());
+const stats = (): Extract<RecorderMessage, { type: 'status' }> => ({
+  type: 'status',
+  recorderStall,
+  id: metadata.id,
+  status: metadata.status,
+  channels: settings.channels,
+  sampleRate: settings.sampleRate,
+  recordedFrames: recorded,
+  totalSamples: recorded * settings.channels,
+  droppedFrames: dropped,
+  lostSamples: dropped * settings.channels,
+  fileBytes: recorded * metadata.recordBytes,
+  queueBytes,
+  peakQueueBytes,
+  bufferBytes: settings.bufferBytes,
+  recorderRssBytes: process.memoryUsage().rss,
+  elapsedSeconds: generatorMetrics.elapsedSeconds || (performance.now() - started) / 1000,
+  generator: generatorMetrics,
+  preview,
 });
+const send = (message: RecorderMessage) => {
+  if (process.connected)
+    process.send!(message, (err) => {
+      if (err) requestStop();
+    });
+};
+const deliver = (message: RecorderMessage) =>
+  new Promise<void>((resolve, reject) => {
+    if (!process.connected) return resolve();
+    process.send!(message, (error) => (error ? reject(error) : resolve()));
+  });
 
 // Coalesce control messages independently of the byte budget. Persistence has
 // already completed before credits enter this accumulator; IPC callbacks only
@@ -43,7 +112,7 @@ function flushCredits() {
   const bytes = pendingCreditBytes;
   pendingCreditBytes = 0;
   creditSending = true;
-  generator.send({ type: 'credit', bytes }, error => {
+  generator.send({ type: 'credit', bytes }, (error) => {
     creditSending = false;
     if (error && !finalized) void fail(error);
     else flushCredits();
@@ -52,7 +121,18 @@ function flushCredits() {
 
 async function recordGap(end: number) {
   if (end <= nextExpected) return;
-  await writeAll(lossFile, Buffer.from(JSON.stringify({ startFrame: nextExpected, endFrameExclusive: end, frames: end - nextExpected, samples: (end - nextExpected) * settings.channels, cause: 'bounded transport exhausted' }) + '\n'));
+  await writeAll(
+    lossFile,
+    Buffer.from(
+      JSON.stringify({
+        startFrame: nextExpected,
+        endFrameExclusive: end,
+        frames: end - nextExpected,
+        samples: (end - nextExpected) * settings.channels,
+        cause: 'bounded transport exhausted',
+      }) + '\n',
+    ),
+  );
   dropped += end - nextExpected;
 }
 
@@ -62,12 +142,17 @@ async function drain() {
   try {
     while (queue.length && !failing) {
       const batch = queue.shift()!;
-      if (recorderStall === 'scheduled' && sourceStarted !== undefined && performance.now() - sourceStarted >= settings.stallAfterSeconds * 1000) {
+      if (
+        recorderStall === 'scheduled' &&
+        sourceStarted !== undefined &&
+        performance.now() - sourceStarted >= settings.stallAfterSeconds * 1000
+      ) {
         recorderStall = 'active';
         await delay(settings.stallForMs, undefined, { signal: cancelled.signal });
         recorderStall = 'recovered';
       }
-      if (settings.writeDelayMs) await delay(settings.writeDelayMs, undefined, { signal: cancelled.signal });
+      if (settings.writeDelayMs)
+        await delay(settings.writeDelayMs, undefined, { signal: cancelled.signal });
       if (failing) return;
       await recordGap(batch.start);
       await writeAll(file, batch.buffer);
@@ -80,12 +165,21 @@ async function drain() {
         lastPreview = performance.now();
         const step = Math.max(1, Math.floor(batch.count / 80));
         preview = [];
-        for (let i = 0; i < batch.count; i += step) preview.push({ index: batch.start + i, values: Array.from({ length: settings.channels }, (_, c) => batch.buffer.readFloatLE(i * metadata.recordBytes + 8 + c * 4)) });
+        for (let i = 0; i < batch.count; i += step)
+          preview.push({
+            index: batch.start + i,
+            values: Array.from({ length: settings.channels }, (_, c) =>
+              batch.buffer.readFloatLE(i * metadata.recordBytes + 8 + c * 4),
+            ),
+          });
       }
     }
     if (finalMessage) await finish();
-  } catch (error) { await fail(error); }
-  finally { draining = false; }
+  } catch (error) {
+    await fail(error);
+  } finally {
+    draining = false;
+  }
 }
 
 async function finish() {
@@ -108,10 +202,16 @@ async function finish() {
   await lossFile.sync();
   await file.close();
   await lossFile.close();
-  while (metricsBusy) await new Promise(r => setTimeout(r, 5));
-  await writeAll(measurements, Buffer.from(JSON.stringify({ ...stats(), preview: undefined, final: true }) + '\n'));
+  while (metricsBusy) await new Promise((r) => setTimeout(r, 5));
+  await writeAll(
+    measurements,
+    Buffer.from(JSON.stringify({ ...stats(), preview: undefined, final: true }) + '\n'),
+  );
   await measurements.close();
-  if (generator.connected) generator.send({ type: 'finish' }, error => { if (error) void fail(error); });
+  if (generator.connected)
+    generator.send({ type: 'finish' }, (error) => {
+      if (error) void fail(error);
+    });
   const exitCode = await generatorClosed;
   if (exitCode !== 0) throw new Error('Generator did not exit cleanly');
   if (failing) return;
@@ -139,30 +239,44 @@ async function fail(cause: unknown) {
   metadata.recordedFrames = physical ? Math.floor(physical.size / metadata.recordBytes) : recorded;
   metadata.totalSamples = metadata.recordedFrames * settings.channels;
   metadata.stoppedAt = new Date().toISOString();
-  await saveMetadata(directory, metadata).catch(saveError => { metadata.error += `; failure metadata could not be saved: ${saveError.message}`; });
+  await saveMetadata(directory, metadata).catch((saveError) => {
+    metadata.error += `; failure metadata could not be saved: ${saveError.message}`;
+  });
   await deliver({ type: 'error', error: metadata.error! }).catch(() => {});
   process.exitCode = 1;
   if (process.connected) process.disconnect();
 }
 
 function boundStop() {
-  stopTimer ??= setTimeout(() => void fail(new Error('Recorder did not finish within the 10-second shutdown limit')), 10000);
+  stopTimer ??= setTimeout(
+    () => void fail(new Error('Recorder did not finish within the 10-second shutdown limit')),
+    10000,
+  );
 }
 function requestStop() {
   if (failing) return;
   boundStop();
-  if (generator.connected && !finalMessage) generator.send({ type: 'stop' }, error => { if (error) void fail(error); });
+  if (generator.connected && !finalMessage)
+    generator.send({ type: 'stop' }, (error) => {
+      if (error) void fail(error);
+    });
 }
 generator.on('message', (message: GeneratorMessage) => {
   if (message.type === 'batch') {
     queue.push(message);
     queueBytes += message.buffer.length;
     peakQueueBytes = Math.max(peakQueueBytes, queueBytes);
-    if (queueBytes > settings.bufferBytes) { fail(new Error('Transport exceeded its byte budget')); return; }
+    if (queueBytes > settings.bufferBytes) {
+      fail(new Error('Transport exceeded its byte budget'));
+      return;
+    }
     drain();
   } else if (message.type === 'status') {
     generatorMetrics = message.generator;
-    if (generator.connected) generator.send({ type: 'status-ack' }, error => { if (error && !finalized) void fail(error); });
+    if (generator.connected)
+      generator.send({ type: 'status-ack' }, (error) => {
+        if (error && !finalized) void fail(error);
+      });
   } else if (message.type === 'done') {
     boundStop();
     finalMessage = message;
@@ -171,23 +285,43 @@ generator.on('message', (message: GeneratorMessage) => {
     metadata.duration = message.expectedFrames / settings.sampleRate;
     send({ type: 'stopping', metadata });
     drain();
-  } else if (message.type === 'started') { sourceStarted = performance.now(); metadata.startedAt = message.timestamp; send({ type: 'started', metadata }); }
+  } else if (message.type === 'started') {
+    sourceStarted = performance.now();
+    metadata.startedAt = message.timestamp;
+    send({ type: 'started', metadata });
+  }
 });
 generator.on('error', fail);
-generator.on('exit', (code, signal) => { if (!finalized && !failing) fail(new Error(`Generator exited unexpectedly (${signal || code})`)); });
-process.on('message', (message: RecorderCommand) => { if (message.type === 'stop') requestStop(); else if (message.type === 'status-ack') statusPending = false; });
+generator.on('exit', (code, signal) => {
+  if (!finalized && !failing) fail(new Error(`Generator exited unexpectedly (${signal || code})`));
+});
+process.on('message', (message: RecorderCommand) => {
+  if (message.type === 'stop') requestStop();
+  else if (message.type === 'status-ack') statusPending = false;
+});
 process.on('SIGINT', requestStop);
 process.on('SIGTERM', requestStop);
 process.on('disconnect', requestStop);
 const statusTimer = setInterval(() => {
-  if (!statusPending && process.connected) { statusPending = true; send(stats()); }
+  if (!statusPending && process.connected) {
+    statusPending = true;
+    send(stats());
+  }
   if (!metricsBusy && performance.now() - lastMeasurement >= 1000) {
     lastMeasurement = performance.now();
     metricsBusy = true;
-    writeAll(measurements, Buffer.from(JSON.stringify({ ...stats(), preview: undefined }) + '\n')).catch(fail).finally(() => { metricsBusy = false; });
+    writeAll(measurements, Buffer.from(JSON.stringify({ ...stats(), preview: undefined }) + '\n'))
+      .catch(fail)
+      .finally(() => {
+        metricsBusy = false;
+      });
   }
 }, 100);
 try {
   await saveMetadata(directory, metadata);
-  generator.send({ type: 'start' }, error => { if (error) void fail(error); });
-} catch (error) { await fail(error); }
+  generator.send({ type: 'start' }, (error) => {
+    if (error) void fail(error);
+  });
+} catch (error) {
+  await fail(error);
+}

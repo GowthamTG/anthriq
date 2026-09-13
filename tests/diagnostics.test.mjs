@@ -15,16 +15,34 @@ async function source(t) {
   const root = await mkdtemp(join(tmpdir(), 'scope-diagnostics-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, 'source-recording');
-  await execute(process.execPath, ['core/cli.ts', 'record', directory, '--channels', '2', '--sample-rate', '8', '--seed', '0', '--seconds', '0.125', '--display-name', 'Diagnostic source']);
+  await execute(process.execPath, [
+    'core/cli.ts',
+    'record',
+    directory,
+    '--channels',
+    '2',
+    '--sample-rate',
+    '8',
+    '--seed',
+    '0',
+    '--seconds',
+    '0.125',
+    '--display-name',
+    'Diagnostic source',
+  ]);
   await verifyRecording(directory);
   return { root, directory };
 }
 
 async function evidence(directory) {
-  return Promise.all(['metadata.json', 'frames.bin', 'verification.json'].map(name => readFile(join(directory, name))));
+  return Promise.all(
+    ['metadata.json', 'frames.bin', 'verification.json'].map((name) =>
+      readFile(join(directory, name)),
+    ),
+  );
 }
 
-test('a clean diagnostic recording passes without changing its source recording or verification report', async t => {
+test('a clean diagnostic recording passes without changing its source recording or verification report', async (t) => {
   const { root, directory } = await source(t);
   const before = await evidence(directory);
   const id = await createDiagnosticScenario(root, 'source-recording', 'clean');
@@ -46,19 +64,22 @@ test('a clean diagnostic recording passes without changing its source recording 
   assert.deepEqual(await evidence(directory), before);
 });
 
-test('a duplicate diagnostic counts every channel and preserves the first physical ordinal', async t => {
+test('a duplicate diagnostic counts every channel and preserves the first physical ordinal', async (t) => {
   const { root } = await source(t);
   const id = await createDiagnosticScenario(root, 'source-recording', 'duplicate');
   const report = await verifyRecording(join(root, id));
 
   assert.equal(report.result, 'FAIL');
-  assert.deepEqual(report.discrepancies.duplicated, { samples: 2, first: { frame: 1, channel: 0, physicalOrdinal: 2 } });
+  assert.deepEqual(report.discrepancies.duplicated, {
+    samples: 2,
+    first: { frame: 1, channel: 0, physicalOrdinal: 2 },
+  });
   assert.equal(report.discrepancies.missing.samples, 0);
   assert.equal(report.discrepancies.incorrect.samples, 0);
   assert.equal(report.formatErrors.count, 1);
 });
 
-test('an incorrect diagnostic exposes one finite and one nonfinite scalar value', async t => {
+test('an incorrect diagnostic exposes one finite and one nonfinite scalar value', async (t) => {
   const { root } = await source(t);
   const id = await createDiagnosticScenario(root, 'source-recording', 'incorrect');
   const report = await verifyRecording(join(root, id));
@@ -73,7 +94,7 @@ test('an incorrect diagnostic exposes one finite and one nonfinite scalar value'
   assert.equal(report.formatErrors.count, 0);
 });
 
-test('a combined diagnostic keeps missing, duplicate, and incorrect classifications separate', async t => {
+test('a combined diagnostic keeps missing, duplicate, and incorrect classifications separate', async (t) => {
   const { root, directory } = await source(t);
   const before = await evidence(directory);
   const id = await createDiagnosticScenario(root, 'source-recording', 'combined');
@@ -81,7 +102,10 @@ test('a combined diagnostic keeps missing, duplicate, and incorrect classificati
 
   assert.equal(report.result, 'FAIL');
   assert.deepEqual(report.discrepancies.missing, { samples: 6, first: { frame: 0, channel: 0 } });
-  assert.deepEqual(report.discrepancies.duplicated, { samples: 2, first: { frame: 1, channel: 0, physicalOrdinal: 1 } });
+  assert.deepEqual(report.discrepancies.duplicated, {
+    samples: 2,
+    first: { frame: 1, channel: 0, physicalOrdinal: 1 },
+  });
   assert.deepEqual(report.discrepancies.incorrect, {
     samples: 2,
     first: { frame: 1, channel: 0, physicalOrdinal: 1, expected: -0.4000000059604645, actual: 7 },
@@ -91,14 +115,19 @@ test('a combined diagnostic keeps missing, duplicate, and incorrect classificati
   assert.deepEqual(await evidence(directory), before);
 });
 
-test('the missing diagnostic exposes initial, interior, and trailing loss from the independent extent', async t => {
+test('the missing diagnostic exposes initial, interior, and trailing loss from the independent extent', async (t) => {
   const { root, directory } = await source(t);
   const before = await evidence(directory);
   const id = await createDiagnosticScenario(root, 'source-recording', 'missing');
   const report = await verifyRecording(join(root, id));
 
   assert.equal(report.result, 'FAIL');
-  assert.deepEqual(report.counts, { expectedFrames: 8, expectedSamples: 16, recordedFrames: 4, recordedSamples: 8 });
+  assert.deepEqual(report.counts, {
+    expectedFrames: 8,
+    expectedSamples: 16,
+    recordedFrames: 4,
+    recordedSamples: 8,
+  });
   assert.deepEqual(report.discrepancies.missing, { samples: 8, first: { frame: 0, channel: 0 } });
   assert.equal(report.discrepancies.duplicated.samples, 0);
   assert.equal(report.discrepancies.incorrect.samples, 0);
@@ -106,27 +135,48 @@ test('the missing diagnostic exposes initial, interior, and trailing loss from t
   assert.deepEqual(await evidence(directory), before);
 });
 
-test('diagnostic creation validates its inputs, refuses diagnostic chaining, and produces unique bundles', async t => {
+test('diagnostic creation validates its inputs, refuses diagnostic chaining, and produces unique bundles', async (t) => {
   const { root, directory } = await source(t);
-  await assert.rejects(createDiagnosticScenario(root, 'source-recording', 'unknown'), error => error.statusCode === 400);
-  await assert.rejects(createDiagnosticScenario(root, '../source-recording', 'clean'), error => error.statusCode === 404);
+  await assert.rejects(
+    createDiagnosticScenario(root, 'source-recording', 'unknown'),
+    (error) => error.statusCode === 400,
+  );
+  await assert.rejects(
+    createDiagnosticScenario(root, '../source-recording', 'clean'),
+    (error) => error.statusCode === 404,
+  );
 
   const first = await createDiagnosticScenario(root, 'source-recording', 'clean');
   const second = await createDiagnosticScenario(root, 'source-recording', 'clean');
   assert.notEqual(first, second);
-  await assert.rejects(createDiagnosticScenario(root, first, 'missing'), error => error.statusCode === 409);
+  await assert.rejects(
+    createDiagnosticScenario(root, first, 'missing'),
+    (error) => error.statusCode === 409,
+  );
 
   const raw = JSON.parse(await readFile(join(directory, 'metadata.json'), 'utf8'));
-  await writeFile(join(directory, 'metadata.json'), JSON.stringify({ ...raw, status: 'recording', expectedFrames: null, duration: null }));
-  await assert.rejects(createDiagnosticScenario(root, 'source-recording', 'clean'), error => error.statusCode === 409);
-  assert.equal((await readdir(root)).some(name => name.startsWith('.scope-diagnostic-')), false);
+  await writeFile(
+    join(directory, 'metadata.json'),
+    JSON.stringify({ ...raw, status: 'recording', expectedFrames: null, duration: null }),
+  );
+  await assert.rejects(
+    createDiagnosticScenario(root, 'source-recording', 'clean'),
+    (error) => error.statusCode === 409,
+  );
+  assert.equal(
+    (await readdir(root)).some((name) => name.startsWith('.scope-diagnostic-')),
+    false,
+  );
 });
 
-test('diagnostic provenance is rejected when its version or scenario is not recognized', async t => {
+test('diagnostic provenance is rejected when its version or scenario is not recognized', async (t) => {
   const { root } = await source(t);
   const id = await createDiagnosticScenario(root, 'source-recording', 'clean');
   const path = join(root, id, 'metadata.json');
   const raw = JSON.parse(await readFile(path, 'utf8'));
-  await writeFile(path, JSON.stringify({ ...raw, diagnostic: { ...raw.diagnostic, scenario: 'mystery' } }));
+  await writeFile(
+    path,
+    JSON.stringify({ ...raw, diagnostic: { ...raw.diagnostic, scenario: 'mystery' } }),
+  );
   await assert.rejects(inspect(join(root, id)), /Invalid diagnostic provenance/);
 });

@@ -1,8 +1,10 @@
 import { open, type FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { RecordingMetadata } from './contracts.ts';
+import { DIAGNOSTIC_SCENARIOS, type RecordingMetadata } from './contracts.ts';
 import { stride, WAVEFORM } from './signal.ts';
 import { safeExtent } from './config.ts';
+
+const safeId = (value: string) => /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(value);
 
 const invalid = (message: string): never => { throw Object.assign(new Error(message), { statusCode: 422 }); };
 
@@ -28,6 +30,11 @@ export function parseMetadata(raw: unknown): RecordingMetadata {
   if (typeof m.status !== 'string' || !['recording', 'completed', 'failed'].includes(m.status)) invalid('Invalid metadata lifecycle');
   if (typeof m.id !== 'string' || !m.id || m.id.length > 255) invalid('Invalid metadata identity');
   if (m.displayName !== undefined && (typeof m.displayName !== 'string' || m.displayName.length > 120)) invalid('Invalid metadata display name');
+  if (m.diagnostic !== undefined) {
+    if (!m.diagnostic || typeof m.diagnostic !== 'object' || Array.isArray(m.diagnostic)) invalid('Invalid diagnostic provenance');
+    const diagnostic = m.diagnostic as Record<string, unknown>;
+    if (diagnostic.format !== 'SCOPE-DIAGNOSTIC/1' || typeof diagnostic.scenario !== 'string' || !DIAGNOSTIC_SCENARIOS.some(scenario => scenario === diagnostic.scenario) || typeof diagnostic.sourceRecordingId !== 'string' || !safeId(diagnostic.sourceRecordingId) || typeof diagnostic.createdAt !== 'string' || !Number.isFinite(Date.parse(diagnostic.createdAt)) || Object.keys(diagnostic).some(key => !['format', 'scenario', 'sourceRecordingId', 'createdAt'].includes(key))) invalid('Invalid diagnostic provenance');
+  }
   for (const key of ['startedAt', 'stoppedAt']) {
     if (key === 'stoppedAt' && m[key] === undefined) continue;
     if (typeof m[key] !== 'string' || !Number.isFinite(Date.parse(m[key]))) invalid(`Invalid metadata ${key}`);

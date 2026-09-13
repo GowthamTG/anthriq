@@ -6,13 +6,13 @@ A local signal-acquisition workbench for a Node.js and React technical assessmen
 
 The complete [implementation specification](SPEC.md) contains the agreed architecture, 56 user stories, operation contracts, storage format, 30 acceptance scenarios, and delivery phases. It is published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issues/1), labeled `ready-for-agent`.
 
-The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T05 are merged. T06 adds independent recording verification through the CLI and workbench.
+The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T06 are merged. T07 adds safe, visible integrity-failure demonstrations.
 
-**T01–T06 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, overload/recovery diagnostics, independent streaming verification, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
+**T01–T07 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, overload/recovery diagnostics, independent streaming verification, disposable integrity scenarios, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
 
 ## Stack and decision review
 
-Next.js/React with strict TypeScript and Tailwind CSS. The local Node server, acquisition owner, generator, recorder, storage reader, verifier, verification worker/owner, and CLI are TypeScript too. Node.js 24 runs their erasable types directly; no runtime transpiler or backend build is needed. Production builds use Next's supported Webpack option; Turbopack's PostCSS worker-port binding was blocked in the local build environment. Shared contracts live in `core/contracts.ts`. Playback remains a JavaScript draft for its later phase.
+Next.js/React with strict TypeScript and Tailwind CSS. The local Node server, acquisition owner, generator, recorder, storage reader, diagnostic generator, verifier, verification worker/owner, and CLI are TypeScript too. Node.js 24 runs their erasable types directly; no runtime transpiler or backend build is needed. Production builds use Next's supported Webpack option; Turbopack's PostCSS worker-port binding was blocked in the local build environment. Shared contracts live in `core/contracts.ts`. Playback remains a JavaScript draft for its later phase.
 
 The [decision audit](docs/decision-audit.md) reviews earlier choices and records corrections. [ADR 0003](docs/adr/0003-typescript-and-tailwind.md) amends the initial JavaScript/native-CSS choice while preserving the parent specification.
 
@@ -93,6 +93,12 @@ The command prints one `SCOPE-VERIFICATION/1` JSON report and atomically saves t
 
 Open **Verify** in the workbench to select a completed recording and run the same verifier in a separate child process. Only one UI verification runs at a time; acquisition remains independently owned and responsive. Progress is coalesced, the result can be downloaded, and its file identity includes device, inode, byte size, and nanosecond modification time for metadata and frame data. Inspection marks a previous report stale when those files change. Finalized, completed-with-loss, verified, integrity-failed, and stale are distinct states.
 
+### Demonstrate integrity failures safely
+
+In **Verify**, select a completed acquisition and use the **Integrity scenario lab**. Choose Clean, Missing, Duplicate, Incorrect, or Combined. SCOPE synthesizes a separate eight-frame diagnostic recording from only the source's channel count, sample rate, seed, and waveform definition, persists it atomically, and runs the real worker-backed verifier. The source frame data, metadata, and any saved verification report are never opened for writing.
+
+The Missing scenario omits initial, interior, and trailing frames so the independently stored expected extent proves that finalized is not synonymous with lossless. Duplicate and Combined also expose the honest metadata/physical-count format contradiction created by an extra physical observation. The result view shows the actual persisted counts and first positions; none are precomputed display values. Diagnostic recordings are marked in the library and details, are safe to remove manually, are not acquisitions, and are not a repair mechanism.
+
 ## Demonstrate overload and recovery
 
 Expand **Overload diagnostics** in the setup panel. Choose 32 channels, 4,000 Hz, an 8,192-byte buffer, a stall after 0.5 seconds lasting 2,000 ms, and a five-second duration. Start and watch the stall, loss detection, resumed writes, and **Completed with loss**. It means the accepted data finalized; it never means verified PASS.
@@ -131,13 +137,13 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-On Linux, use `npx playwright install --with-deps chromium` when system browser dependencies are absent. Browser tests start their own production servers on ports 3100, 3101, 3102, and 3104 and use isolated temporary recording locations. Core tests launch real processes and inspect real files, including an independently calculated float32 reference value. Test artifacts and recordings are excluded from Git.
+On Linux, use `npx playwright install --with-deps chromium` when system browser dependencies are absent. Browser tests start their own production servers on ports 3100–3104 and use isolated temporary recording locations. Core tests launch real processes and inspect real files, including an independently calculated float32 reference value. Test artifacts and recordings are excluded from Git.
 
-The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md) , [T02 configuration evidence](docs/evidence/t02/README.md), [T03 library evidence](docs/evidence/t03/README.md), [T04 failure evidence](docs/evidence/t04/README.md), and [T05 overload evidence](docs/evidence/t05/README.md) distinguish completed local checks from the later sustained-performance work.
+The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md), [T02 configuration evidence](docs/evidence/t02/README.md), [T03 library evidence](docs/evidence/t03/README.md), [T04 failure evidence](docs/evidence/t04/README.md), [T05 overload evidence](docs/evidence/t05/README.md), [T06 verification evidence](docs/evidence/t06/README.md), and [T07 diagnostic evidence](docs/evidence/t07/README.md) distinguish completed local checks from the later sustained-performance work.
 
 ## Phase boundary
 
-The implemented phases include configurable acquisition, inspection, overload recovery, and independent verification of saved results. Live traces, disposable corruption demonstrations, CSV export, playback controls, extended stress experiments, the one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity PASS is fabricated in the interface.
+The implemented phases include configurable acquisition, inspection, overload recovery, independent verification, and disposable corruption demonstrations. Live traces, CSV export, playback controls, extended stress experiments, the one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity result is fabricated in the interface.
 
 ## Agreed direction
 

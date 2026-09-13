@@ -31,6 +31,8 @@ Float32 matches the deterministic rounded signal and keeps storage compact. Floa
 
 Identity fields are `id` and optional `displayName`. Configuration fields are `channels`, `sampleRate`, `seed`, `bufferBytes`, `seconds`, `writeDelayMs`, `stallAfterSeconds`, and `stallForMs`; older bundles may omit the two temporary-stall fields (off). Their numeric bounds are in the README. Times are `startedAt` and optional `stoppedAt`. `status` is `recording`, `completed`, or `failed`.
 
+An optional `diagnostic` object marks a disposable demonstration bundle. Its fields are `format: SCOPE-DIAGNOSTIC/1`, one of the scenarios `clean`, `missing`, `duplicate`, `incorrect`, or `combined`, the `sourceRecordingId`, and `createdAt`. The marker is validated when present; recordings created before T07 remain compatible without it.
+
 `expectedFrames` is the independently confirmed exclusive source extent, or null while unconfirmed. `recordedFrames` is the recorder's physical frame count; `totalSamples` is that count multiplied by channels. `droppedFrames` counts known omitted source frames. A normal finalized recording reconciles recorded plus lost frames to expected extent. `duration` is expected extent / sample rate when known; inspection returns null when extent is unconfirmed, even if an older sidecar contains a stale duration. Requested duration remains in `seconds`.
 
 The recorder creates initial metadata and atomically replaces it at finalization. During acquisition, sidecar counts can lag disk writes. A leftover `recording` lifecycle after process interruption is incomplete evidence, not proof that a process still exists. Inspection reports this limitation and keeps physical and declared counts separate.
@@ -68,3 +70,11 @@ The verifier streams all complete physical records in reusable chunks targeting 
 The checked state contains `dev`, `ino`, `size`, and `mtimeNs` for both `metadata.json` and `frames.bin`, captured through open handles and checked again before the atomic report replacement. Inspection reports `unverified`, `verified`, `integrity-failed`, or `stale`. Stale reports remain downloadable evidence but cannot establish the current recording's integrity.
 
 CLI exit status is 0 for PASS, 1 for a completed integrity/format FAIL report, and 2 when invocation or operational failure prevents a trustworthy persisted report. Invalid metadata, contradictions, partial records, non-completed lifecycle, and unconfirmed extent are reportable format failures. Missing/unreadable artifacts, concurrent mutation, worker failure, and inability to persist the report are operational failures.
+
+## Disposable integrity scenarios
+
+`POST /api/verification-scenarios` accepts only `sourceRecordingId` and a supported `scenario`. The source must be a completed acquisition, not another diagnostic recording. Creation and verification share the one-job verification owner: another normal or diagnostic verification returns conflict while either creation or scanning is active.
+
+Each scenario is an eight-frame recording generated from the source's signal definition without reading or copying its frame payload. It is built in a hidden temporary directory and atomically renamed before the verification worker opens it. Its source metadata, frames, and prior verification report are never opened for writing. Missing intervals are recorded with the cause `disposable diagnostic scenario`; the report itself still comes only from the physical streaming verifier.
+
+Diagnostic bundles persist in the recordings directory, are visibly marked in library and result views, and are safe for an operator to remove manually. They are not acquisitions, do not prove anything about the source recording's integrity, and provide no editing or repair behavior.

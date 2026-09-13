@@ -1,5 +1,11 @@
 import { join, resolve } from 'node:path';
-import type { Frame, PlaybackPreview, PlaybackSink, PlaybackState } from './contracts.ts';
+import type {
+  Frame,
+  PlaybackControlCommand,
+  PlaybackPreview,
+  PlaybackSink,
+  PlaybackState,
+} from './contracts.ts';
 import { inspect, rangeSelection, readFrames } from './storage.ts';
 
 const TICK_MS = 10;
@@ -24,6 +30,7 @@ export const idlePlaybackState = (): PlaybackState => ({
   speed: 1,
   position: 0,
   positionSeconds: 0,
+  segmentStartPosition: 0,
   expectedFrames: 0,
   durationSeconds: 0,
   emittedFrames: 0,
@@ -51,9 +58,12 @@ export class Playback {
   private generation = 0;
   private anchorPosition = 0;
   private anchorTime = 0;
+  private activeElapsedBeforeAnchor = 0;
   private lastObservedIndex: number | null = null;
+  private controlTail: Promise<void> = Promise.resolve();
   private readonly maxBatchFrames: number;
-  private readonly previewChannels: number[];
+  private readonly channelCount: number;
+  private previewChannels: number[];
   private readonly directory: string;
   private readonly sink: PlaybackSink;
   private state: PlaybackState;
@@ -62,6 +72,7 @@ export class Playback {
     this.directory = directory;
     this.sink = sink;
     this.state = state;
+    this.channelCount = state.channels.length;
     this.previewChannels = state.channels.slice(0, 4);
     this.maxBatchFrames = Math.max(
       1,
@@ -100,7 +111,7 @@ export class Playback {
       },
     };
     const playback = new Playback(directory, sink, state);
-    await playback.openReader();
+    if (state.status !== 'ended') await playback.openReader();
     return playback;
   }
 
@@ -115,45 +126,138 @@ export class Playback {
   }
 
   play() {
-    if (this.closed) throw new Error('Playback is closed');
-    if (this.state.status === 'playing' || this.state.status === 'ended') return this.snapshot();
-    if (this.state.status === 'error')
-      throw Object.assign(new Error('Restart playback after an error'), { statusCode: 409 });
-    this.state.status = 'playing';
-    this.anchorPosition = this.state.position;
-    this.anchorTime = performance.now();
-    this.timer = setInterval(() => this.scheduleTick(), TICK_MS);
-    this.publish();
-    return this.snapshot();
+    return this.enqueue(async () => {
+      this.assertOpen();
+      if (this.state.status === 'playing' || this.state.status === 'ended') return this.snapshot();
+      if (this.state.status === 'error')
+        throw Object.assign(new Error('Restart playback after an error'), { statusCode: 409 });
+      this.startTimer();
+      this.publish();
+      return this.snapshot();
+    });
   }
 
-  async restart() {
-    if (this.closed) throw new Error('Playback is closed');
-    this.stopTimer();
-    this.generation++;
-    await this.inFlight?.catch(() => {});
-    await this.closeReader();
-    this.pending = null;
-    this.iteratorDone = false;
-    this.lastObservedIndex = null;
-    this.state = {
-      ...this.state,
-      status: this.state.expectedFrames === 0 ? 'ended' : 'paused',
-      position: 0,
-      positionSeconds: 0,
-      emittedFrames: 0,
-      emittedSamples: 0,
-      skippedDuplicateFrames: 0,
-      activeElapsedMs: 0,
-      currentLagFrames: 0,
-      currentLagMs: 0,
-      maxLagMs: 0,
-      preview: { ...this.state.preview, observations: [] },
-      error: null,
-    };
-    await this.openReader();
-    this.publish();
-    return this.snapshot();
+  pause() {
+    return this.enqueue(async () => {
+      this.assertOpen();
+      if (this.state.status !== 'playing') return this.snapshot();
+      await this.quiesce();
+      this.state.status = 'paused';
+      this.publish();
+      return this.snapshot();
+    });
+  }
+
+  restart() {
+    return this.enqueue(async () => {
+      this.assertOpen();
+      await this.quiesce();
+      await this.closeReader();
+      this.pending = null;
+      this.iteratorDone = false;
+      this.lastObservedIndex = null;
+      this.state = {
+        ...this.state,
+        status: this.state.expectedFrames === 0 ? 'ended' : 'paused',
+        position: 0,
+        positionSeconds: 0,
+        segmentStartPosition: 0,
+        emittedFrames: 0,
+        emittedSamples: 0,
+        skippedDuplicateFrames: 0,
+        activeElapsedMs: 0,
+        currentLagFrames: 0,
+        currentLagMs: 0,
+        maxLagMs: 0,
+        preview: { ...this.state.preview, observations: [] },
+        error: null,
+      };
+      this.activeElapsedBeforeAnchor = 0;
+      if (this.state.status !== 'ended') await this.openReader();
+      this.publish();
+      return this.snapshot();
+    });
+  }
+
+  seek(position: number) {
+    return this.enqueue(async () => {
+      this.assertOpen();
+      this.assertPosition(position);
+      this.assertRecoverable();
+      const resume = this.state.status === 'playing';
+      await this.quiesce();
+      await this.closeReader();
+      this.pending = null;
+      this.iteratorDone = position === this.state.expectedFrames;
+      this.lastObservedIndex = null;
+      this.state = {
+        ...this.state,
+        status: position === this.state.expectedFrames ? 'ended' : resume ? 'playing' : 'paused',
+        position,
+        positionSeconds: position / this.state.sampleRate!,
+        segmentStartPosition: position,
+        activeElapsedMs: 0,
+        currentLagFrames: 0,
+        currentLagMs: 0,
+        maxLagMs: 0,
+        preview: { ...this.state.preview, observations: [] },
+      };
+      this.activeElapsedBeforeAnchor = 0;
+      if (this.state.status !== 'ended') await this.openReader();
+      if (this.state.status === 'playing') this.startTimer();
+      this.publish();
+      return this.snapshot();
+    });
+  }
+
+  setSpeed(speed: number) {
+    return this.enqueue(async () => {
+      this.assertOpen();
+      if (!Number.isFinite(speed) || speed < 0.1 || speed > 8)
+        throw Object.assign(new Error('Playback speed must be a finite value from 0.1 to 8'), {
+          statusCode: 400,
+        });
+      this.assertRecoverable();
+      const resume = this.state.status === 'playing';
+      await this.quiesce();
+      this.state = {
+        ...this.state,
+        speed,
+        segmentStartPosition: this.state.position,
+        activeElapsedMs: 0,
+        currentLagFrames: 0,
+        currentLagMs: 0,
+        maxLagMs: 0,
+      };
+      this.activeElapsedBeforeAnchor = 0;
+      if (resume) this.startTimer();
+      this.publish();
+      return this.snapshot();
+    });
+  }
+
+  setChannels(channels: number[]) {
+    return this.enqueue(async () => {
+      this.assertOpen();
+      this.assertChannels(channels);
+      this.assertRecoverable();
+      const resume = this.state.status === 'playing';
+      await this.quiesce();
+      await this.closeReader();
+      this.pending = null;
+      this.iteratorDone = this.state.position === this.state.expectedFrames;
+      this.lastObservedIndex = null;
+      this.previewChannels = channels.slice(0, 4);
+      this.state = {
+        ...this.state,
+        channels: [...channels],
+        preview: { ...this.state.preview, channels: [...this.previewChannels], observations: [] },
+      };
+      if (this.state.position < this.state.expectedFrames) await this.openReader();
+      if (resume) this.startTimer();
+      this.publish();
+      return this.snapshot();
+    });
   }
 
   async close() {
@@ -167,9 +271,11 @@ export class Playback {
   }
 
   private async openReader() {
-    this.iterator = readFrames(this.directory, { start: 0, end: this.state.expectedFrames })[
-      Symbol.asyncIterator
-    ]();
+    this.iterator = readFrames(this.directory, {
+      start: this.state.position,
+      end: this.state.expectedFrames,
+      channels: this.state.channels,
+    })[Symbol.asyncIterator]();
     await this.readNext();
   }
 
@@ -194,13 +300,17 @@ export class Playback {
       return this.state.position;
     return Math.min(
       this.state.expectedFrames,
-      Math.floor(this.anchorPosition + ((now - this.anchorTime) / 1000) * this.state.sampleRate),
+      Math.floor(
+        this.anchorPosition +
+          ((now - this.anchorTime) / 1000) * this.state.sampleRate * this.state.speed,
+      ),
     );
   }
 
   private refreshTiming(now = performance.now()) {
     if (this.state.status !== 'playing' || this.state.sampleRate === null) return;
-    this.state.activeElapsedMs = Math.max(0, now - this.anchorTime);
+    this.state.activeElapsedMs =
+      this.activeElapsedBeforeAnchor + Math.max(0, now - this.anchorTime);
     const lagFrames = Math.max(0, this.duePosition(now) - this.state.position);
     this.state.currentLagFrames = lagFrames;
     this.state.currentLagMs = (lagFrames / this.state.sampleRate) * 1000;
@@ -215,6 +325,63 @@ export class Playback {
   private stopTimer() {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+  }
+
+  private startTimer() {
+    this.state.status = 'playing';
+    this.anchorPosition = this.state.position;
+    this.anchorTime = performance.now();
+    this.timer = setInterval(() => this.scheduleTick(), TICK_MS);
+  }
+
+  private async quiesce() {
+    this.stopTimer();
+    this.generation++;
+    await this.inFlight?.catch(() => {});
+    this.refreshTiming();
+    this.activeElapsedBeforeAnchor = this.state.activeElapsedMs;
+  }
+
+  private enqueue<T>(operation: () => Promise<T>) {
+    const run = this.controlTail.then(operation, operation);
+    this.controlTail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private assertOpen() {
+    if (this.closed) throw new Error('Playback is closed');
+  }
+
+  private assertRecoverable() {
+    if (this.state.status === 'error')
+      throw Object.assign(new Error('Restart playback after an error'), { statusCode: 409 });
+  }
+
+  private assertPosition(position: number) {
+    if (!Number.isSafeInteger(position) || position < 0 || position > this.state.expectedFrames)
+      throw Object.assign(
+        new Error(
+          `Playback position must be a safe frame index from 0 to ${this.state.expectedFrames}`,
+        ),
+        { statusCode: 400 },
+      );
+  }
+
+  private assertChannels(channels: number[]) {
+    if (
+      !Array.isArray(channels) ||
+      !channels.length ||
+      new Set(channels).size !== channels.length ||
+      channels.some(
+        (channel) => !Number.isSafeInteger(channel) || channel < 0 || channel >= this.channelCount,
+      )
+    )
+      throw Object.assign(new Error('Choose unique, valid zero-based playback channels'), {
+        statusCode: 400,
+      });
   }
 
   private scheduleTick() {
@@ -272,12 +439,13 @@ export class Playback {
       const accepted = batch;
       batch = [];
       await this.sink.write(accepted);
-      if (generation !== this.generation || this.closed) return;
+      // A sink acknowledgement is an emission boundary. Commit it before honoring a newer command.
       this.state.emittedFrames += accepted.length;
       this.state.emittedSamples += accepted.length * this.state.channels.length;
       this.state.position = Math.max(this.state.position, accepted[accepted.length - 1].index + 1);
       this.state.positionSeconds = this.state.position / this.state.sampleRate!;
       this.appendPreview(accepted);
+      if (generation !== this.generation || this.closed) return;
       this.publish();
     };
 
@@ -285,6 +453,7 @@ export class Playback {
       const frame = this.pending;
       processed++;
       await this.readNext();
+      if (generation !== this.generation || this.closed) return;
       if (this.lastObservedIndex === frame.index) {
         duplicates++;
         continue;
@@ -377,12 +546,30 @@ export class PlaybackOwner {
     return this.snapshot();
   }
 
-  async control(recordingId: string, action: 'play' | 'restart') {
+  async control(recordingId: string, command: PlaybackControlCommand | 'play' | 'restart') {
     if (!this.session || this.state.recordingId !== recordingId)
       throw Object.assign(new Error('The recording is not the active playback session'), {
         statusCode: 409,
       });
-    return action === 'play' ? this.session.play() : this.session.restart();
+    const request = typeof command === 'string' ? { action: command, recordingId } : command;
+    switch (request.action) {
+      case 'play':
+        return this.session.play();
+      case 'pause':
+        return this.session.pause();
+      case 'restart':
+        return this.session.restart();
+      case 'seek':
+        return this.session.seek(
+          'position' in request
+            ? request.position
+            : Math.ceil(request.positionSeconds * this.state.sampleRate!),
+        );
+      case 'speed':
+        return this.session.setSpeed(request.speed);
+      case 'channels':
+        return this.session.setChannels(request.channels);
+    }
   }
 
   async shutdown() {

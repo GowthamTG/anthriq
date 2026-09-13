@@ -245,6 +245,148 @@ test('opening an incomplete replacement leaves the valid owner session unchanged
   assert.equal(owner.snapshot().status, 'paused');
 });
 
+test('pause acknowledges at an emission boundary and resume starts at the next frame', async (t) => {
+  const { directory } = await recording(t, { rate: 30, seconds: 0.5 });
+  const output = [];
+  let release;
+  let enteredWrite;
+  const entered = new Promise((resolve) => {
+    release = resolve;
+  });
+  const writeStarted = new Promise((resolve) => {
+    enteredWrite = resolve;
+  });
+  const playback = await Playback.open(directory, {
+    async write(batch) {
+      enteredWrite();
+      await entered;
+      output.push(...batch);
+    },
+  });
+  t.after(() => playback.close());
+
+  await playback.play();
+  await writeStarted;
+  const pause = playback.pause();
+  let acknowledged = false;
+  void pause.then(() => {
+    acknowledged = true;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(acknowledged, false, 'pause acknowledged before the accepted sink batch committed');
+  release();
+  const paused = await pause;
+  assert.equal(paused.status, 'paused');
+  const count = output.length;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(output.length, count, 'output continued after pause acknowledgement');
+
+  const done = terminal(playback);
+  await playback.play();
+  await done;
+  assert.deepEqual(
+    output.map((frame) => frame.index),
+    Array.from({ length: 15 }, (_, index) => index),
+  );
+});
+
+test('seek, selected channels, and speed preserve a precise next position', async (t) => {
+  const { directory } = await recording(t, { channels: 3, rate: 40, seconds: 0.6 });
+  const output = [];
+  const playback = await Playback.open(directory, { write: (batch) => output.push(...batch) });
+  t.after(() => playback.close());
+  await playback.play();
+  await waitFor(
+    () => output.length,
+    (count) => count >= 3,
+  );
+  await playback.pause();
+
+  const sought = await playback.seek(12);
+  assert.deepEqual(
+    {
+      status: sought.status,
+      position: sought.position,
+      segmentStartPosition: sought.segmentStartPosition,
+    },
+    { status: 'paused', position: 12, segmentStartPosition: 12 },
+  );
+  const changed = await playback.setChannels([2, 0]);
+  assert.deepEqual(changed.channels, [2, 0]);
+  assert.deepEqual(changed.preview.channels, [2, 0]);
+  const start = output.length;
+  const done = terminal(playback);
+  await playback.play();
+  await done;
+  assert.equal(output[start].index, 12);
+  assert.ok(output.slice(start).every((frame) => frame.values.length === 2));
+
+  const restarted = await playback.restart();
+  const beforeSpeed = performance.now();
+  await playback.setSpeed(2);
+  const fastDone = terminal(playback);
+  await playback.play();
+  await fastDone;
+  const fastElapsed = performance.now() - beforeSpeed;
+  assert.equal(restarted.speed, 1);
+  assert.ok(fastElapsed < 700, `2x playback was unexpectedly slow: ${fastElapsed} ms`);
+});
+
+test('a seek during a pending sink write cannot leak its former reader after acknowledgement', async (t) => {
+  const { directory } = await recording(t, { rate: 30, seconds: 0.6 });
+  const output = [];
+  let release;
+  let beginWrite;
+  const releaseWrite = new Promise((resolve) => {
+    release = resolve;
+  });
+  const writeStarted = new Promise((resolve) => {
+    beginWrite = resolve;
+  });
+  const playback = await Playback.open(directory, {
+    async write(batch) {
+      beginWrite();
+      await releaseWrite;
+      output.push(...batch);
+    },
+  });
+  t.after(() => playback.close());
+
+  await playback.play();
+  await writeStarted;
+  const seeking = playback.seek(10);
+  release();
+  const sought = await seeking;
+  assert.equal(sought.position, 10);
+  assert.equal(sought.status, 'playing');
+  const acknowledgedCount = output.length;
+  release = () => {};
+  await waitFor(
+    () => output.length,
+    (count) => count > acknowledgedCount,
+  );
+  await playback.pause();
+  assert.ok(output.slice(acknowledgedCount).every((frame) => frame.index >= 10));
+});
+
+test('invalid precise controls preserve state and seeking exactly to end is valid', async (t) => {
+  const { directory } = await recording(t, { channels: 3, rate: 20, seconds: 0.4 });
+  const playback = await Playback.open(directory);
+  t.after(() => playback.close());
+  const before = playback.snapshot();
+  await assert.rejects(playback.seek(-1), /safe frame index/);
+  await assert.rejects(playback.setSpeed(8.1), /0.1 to 8/);
+  await assert.rejects(playback.setChannels([0, 0]), /unique/);
+  assert.deepEqual(playback.snapshot(), before);
+
+  const ended = await playback.seek(before.expectedFrames);
+  assert.equal(ended.status, 'ended');
+  assert.equal(ended.position, before.expectedFrames);
+  const rewound = await playback.seek(2);
+  assert.equal(rewound.status, 'paused');
+  assert.equal(rewound.position, 2);
+});
+
 test('the CLI optionally streams accepted playback frames and reports final metrics', async (t) => {
   const { directory } = await recording(t, { rate: 20, seconds: 0.1 });
   const result = await execute(process.execPath, [

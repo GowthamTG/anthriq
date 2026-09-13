@@ -139,9 +139,18 @@ holds one sequential bounded reader, emits the first adjacent observation for ea
 later adjacent duplicates, and advances absent indices on their original timeline. Full-data sink
 batches are awaited before position is committed. Browser events contain only bounded decimated
 preview observations and metrics, never the full-rate stream. `position` is the next original frame
-to emit; active elapsed time and lag use a monotonic clock. End does not loop, and Restart returns
-to paused position zero. Pause, seek, variable speed, and selected-channel controls are added in
-T11.
+to emit; active elapsed time and lag use a monotonic clock.
+
+Pause stops scheduling, waits for an accepted-output boundary, and only then acknowledges its paused
+state. Seek invalidates the prior reader/output generation and opens a selected-channel reader at an
+exact valid original position; an elapsed-time seek resolves with `ceil(seconds × sampleRate)`. The
+valid range is zero through the exclusive expected extent, and the extent itself is a valid ended
+position. The reader uses lower-bound index probes, so each seek costs O(log N) probes plus bounded
+sequential chunks rather than a full scan. Speed is forward-only from 0.1× through 8×. Seek and
+speed start a new timing segment; paused duration is excluded. Changing channels preserves
+`position`, clears the decimated preview, and recreates the reader without changing the recording.
+End does not loop, and Restart returns to paused position zero while retaining the selected speed
+and channels.
 
 ## Verification report
 

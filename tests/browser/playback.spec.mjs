@@ -55,6 +55,7 @@ test.beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'scope-playback-browser-'));
   await record('api-recording', 0.3);
   await record('ui-recording', 0.5);
+  await record('control-recording', 2);
   await createGapRecording();
   await record('incomplete-recording', 0.1);
   const metadataPath = join(root, 'incomplete-recording', 'metadata.json');
@@ -101,13 +102,33 @@ test('playback HTTP commands validate input and preserve one active session', as
   expect((await post({ action: 'open', recordingId: 'api-recording', extra: true })).status).toBe(
     400,
   );
-  expect((await post({ action: 'pause', recordingId: 'api-recording' })).status).toBe(400);
+  expect((await post({ action: 'unknown', recordingId: 'api-recording' })).status).toBe(400);
   expect((await post({ action: 'open', recordingId: 'missing' })).status).toBe(404);
   expect((await post({ action: 'open', recordingId: 'incomplete-recording' })).status).toBe(409);
 
   const opened = await post({ action: 'open', recordingId: 'api-recording' });
   expect(opened.status).toBe(200);
   expect(await opened.json()).toMatchObject({ status: 'paused', recordingId: 'api-recording' });
+  expect(
+    (
+      await post({
+        action: 'seek',
+        recordingId: 'api-recording',
+        position: 1,
+        positionSeconds: 0.1,
+      })
+    ).status,
+  ).toBe(400);
+  expect((await post({ action: 'speed', recordingId: 'api-recording', speed: 9 })).status).toBe(
+    400,
+  );
+  const precise = await post({
+    action: 'seek',
+    recordingId: 'api-recording',
+    positionSeconds: 0.1,
+  });
+  expect(precise.status).toBe(200);
+  expect(await precise.json()).toMatchObject({ status: 'paused', position: 2 });
   expect((await post({ action: 'play', recordingId: 'ui-recording' })).status).toBe(409);
   expect((await post({ action: 'play', recordingId: 'api-recording' })).status).toBe(200);
   await expect
@@ -138,8 +159,8 @@ test('recording detail plays real observations once and restarts paused at zero'
   await expect(page.getByTestId('playback-visible-gaps')).toContainText('0');
   await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
   await expect(page.getByTestId('playback-trace').locator('canvas')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Play at 1×' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Play at 1×' }).click();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByTestId('playback-status')).toHaveText('Ended', { timeout: 3000 });
   await expect(page.getByTestId('playback-metrics')).toContainText('10');
   await expect(page.getByTestId('playback-metrics')).toContainText('20');
@@ -195,7 +216,7 @@ test('uPlot trace preserves initial, interior, and trailing gaps across replacem
   });
   await page.goto(`${base}/recordings?id=gap-recording`);
   await expect(page.getByTestId('playback-status')).toHaveText('Paused');
-  await page.getByRole('button', { name: 'Play at 1×' }).click();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByTestId('playback-status')).toHaveText('Ended', { timeout: 3000 });
   await expect(page.getByTestId('playback-latest-frame')).toContainText('8');
   await expect(page.getByTestId('playback-visible-window')).toContainText('frames 0-9');
@@ -224,4 +245,51 @@ test('uPlot trace preserves initial, interior, and trailing gaps across replacem
   await expect(page.getByTestId('playback-visible-gaps')).toContainText('0');
   await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
   expect(consoleErrors).toEqual([]);
+});
+
+test('recording detail pauses, seeks, changes speed, and changes visible channels', async ({
+  page,
+}) => {
+  await page.goto(`${base}/recordings?id=control-recording`);
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await page.getByRole('button', { name: '0.25×' }).click();
+  await expect(page.getByTestId('playback-metrics')).toContainText('0.25×');
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).position)
+    .toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Pause' }).click();
+  const paused = await (await fetch(`${base}/api/playback`)).json();
+  expect(paused.status).toBe('paused');
+  await page.waitForTimeout(100);
+  expect((await (await fetch(`${base}/api/playback`)).json()).position).toBe(paused.position);
+
+  await page.getByTestId('playback-exact-seek').fill('20');
+  await page.getByRole('button', { name: 'Seek', exact: true }).click();
+  await expect(page.getByTestId('playback-metrics')).toContainText('20 / 40');
+  await page.getByLabel('Ch 1').click();
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).channels)
+    .toEqual([0]);
+  await page.getByTestId('playback-speed').fill('2');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.getByTestId('playback-metrics')).toContainText('2×');
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).position)
+    .toBeGreaterThan(20);
+  await page.getByTestId('playback-timeline').press('End');
+  await expect(page.getByTestId('playback-status')).toHaveText('Ended');
+  const ended = await (await fetch(`${base}/api/playback`)).json();
+  expect(ended.position).toBe(40);
+  expect(ended.preview.channels).toEqual([0]);
+
+  if (process.env.SCOPE_CAPTURE_T11_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t11/controls-ended.png'),
+      fullPage: true,
+    });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });

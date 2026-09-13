@@ -37,6 +37,20 @@
     font-size: 14px;
     -webkit-font-smoothing: antialiased;
   }
+
+  .signal-trace .uplot {
+    width: 100% !important;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .signal-trace .u-wrap {
+    background: #121412;
+  }
+  .signal-trace .u-cursor-x,
+  .signal-trace .u-cursor-y {
+    border-color: #c5cac6;
+    opacity: 0.75;
+  }
   button,
   a {
     -webkit-tap-highlight-color: transparent;

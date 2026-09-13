@@ -28,15 +28,37 @@ The screenshots are captured from the production recording-detail route after te
 have crossed the full-data sink at 20 Hz. The trace is the bounded decimated browser view; the
 adjacent counters are the engine's actual output and timing state.
 
+The follow-up chart uses pinned `uplot@1.6.32` behind a dynamically loaded client module. Original
+frame and elapsed-time axes share the source index scale, normalized amplitude remains fixed at
+`[-1, 1]`, and the cursor reports exact stored values. Null observations inserted only in the
+chart's aligned data break lines across visible missing intervals. The gapped fixture retains frames
+`1, 2, 5, 6, 7, 8` from an expected extent of ten and reports its initial, interior, and trailing
+preview gaps separately from recorded-loss counters.
+
+The production webpack build emits uPlot as a 50,747-byte minified lazy chunk and the signal-trace
+module as a separate 5,397-byte minified lazy chunk. Together they are 24,142 bytes when measured
+with gzip. uPlot's dynamically loaded stylesheet is 1,620 bytes minified and 711 bytes with gzip.
+The static acquisition page does not import these assets. The complete Chromium suite passes 21
+workflows, including cursor values, bounded snapshots, explicit restart, in-page recording
+replacement, gap presentation, and the 390-pixel layout.
+
 ![Native playback ended state](ended.png)
 
 ![Native playback narrow ended state](narrow-ended.png)
+
+![uPlot native playback ended state](uplot-ended.png)
+
+![uPlot playback with initial, interior, and trailing gaps](uplot-gap.png)
+
+![uPlot playback narrow layout](uplot-narrow.png)
 
 ## Bounds and limits
 
 Full-data batches contain at most 256 frames and target at most 64 KiB. One scheduler turn examines
 at most 4,096 physical observations. Browser state retains at most 256 decimated observations for
 the first four channels and is coalesced through the existing SSE stream; full-rate frames are not
-copied into React state. These checks establish short-run correctness and measured native pacing,
-not the long-recording measurements scheduled for T16. Pause, seek, speed, and channel controls
-remain T11.
+copied into React state. The visualization creates one uPlot instance per channel/rate
+configuration, coalesces data paints with `requestAnimationFrame`, resizes through `ResizeObserver`,
+and destroys all of those resources when the recording changes or the view unmounts. These checks
+establish short-run correctness and measured native pacing, not the long-recording measurements
+scheduled for T16. Pause, seek, speed, and channel controls remain T11.

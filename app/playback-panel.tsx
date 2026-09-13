@@ -1,7 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useEffect, useState } from 'react';
 import type { PlaybackState, RecordingInspection } from '../core/contracts';
+
+const SignalTrace = dynamic(() => import('./signal-trace').then((module) => module.SignalTrace), {
+  ssr: false,
+  loading: () => (
+    <div className="mt-5 min-h-[340px] border border-line bg-[#171917] p-4 text-xs text-muted">
+      Loading signal chart...
+    </div>
+  ),
+});
 
 const statusName = {
   idle: 'Idle',
@@ -10,97 +20,9 @@ const statusName = {
   ended: 'Ended',
   error: 'Error',
 };
-const colors = ['#ff9b87', '#b8d6a5', '#8fc6cf', '#d4b4db'];
 const integer = (value: number) => value.toLocaleString('en-US');
 const seconds = (value: number) => `${value.toFixed(3)} s`;
 const milliseconds = (value: number) => `${value.toFixed(1)} ms`;
-
-function PlaybackTrace({ state }: { state: PlaybackState }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const preview = state.preview;
-  useEffect(() => {
-    const element = canvas.current;
-    if (!element) return;
-    const draw = () => {
-      const context = element.getContext('2d');
-      if (!context) return;
-      const ratio = window.devicePixelRatio || 1;
-      const width = Math.max(1, element.clientWidth);
-      const height = Math.max(1, element.clientHeight);
-      element.width = Math.floor(width * ratio);
-      element.height = Math.floor(height * ratio);
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.clearRect(0, 0, width, height);
-      context.strokeStyle = '#323733';
-      context.lineWidth = 1;
-      for (let line = 1; line < 4; line++) {
-        const y = (height * line) / 4;
-        context.beginPath();
-        context.moveTo(0, y);
-        context.lineTo(width, y);
-        context.stroke();
-      }
-      const observations = preview.observations;
-      if (!observations.length) return;
-      const first = observations[0].index;
-      const last = observations.at(-1)!.index;
-      const span = Math.max(1, last - first);
-      preview.channels.forEach((_, channelIndex) => {
-        context.strokeStyle = colors[channelIndex % colors.length];
-        context.lineWidth = 1.5;
-        context.beginPath();
-        let previousIndex: number | null = null;
-        for (const observation of observations) {
-          const x = ((observation.index - first) / span) * width;
-          const value = Math.max(-1, Math.min(1, observation.values[channelIndex] ?? 0));
-          const y = height / 2 - value * (height * 0.42);
-          if (previousIndex === null || observation.index - previousIndex > preview.decimation * 2)
-            context.moveTo(x, y);
-          else context.lineTo(x, y);
-          previousIndex = observation.index;
-        }
-        context.stroke();
-      });
-    };
-    draw();
-    const observer = new ResizeObserver(draw);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [preview]);
-  const latest = preview.observations.at(-1);
-  return (
-    <div className="mt-5 border border-line bg-[#171917] p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="micro">DECIMATED PREVIEW FROM STORED OBSERVATIONS</span>
-        <span className="font-mono text-[10px] text-muted">
-          {preview.observations.length}/{preview.capacity} points · every {preview.decimation} frame
-          {preview.decimation === 1 ? '' : 's'}
-        </span>
-      </div>
-      <canvas
-        ref={canvas}
-        data-testid="playback-trace"
-        className="mt-4 h-52 w-full"
-        aria-label="Playback signal trace"
-      />
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] text-muted">
-        {preview.channels.map((channel, index) => (
-          <span key={channel}>
-            <span
-              className="mr-2 inline-block size-2"
-              style={{ backgroundColor: colors[index % colors.length] }}
-              aria-hidden="true"
-            />
-            Channel {channel}: {latest ? latest.values[index]?.toFixed(5) : '—'}
-          </span>
-        ))}
-        <span data-testid="playback-latest-frame">
-          Latest original frame: {latest ? integer(latest.index) : '—'}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 export function PlaybackPanel({ details }: { details: RecordingInspection }) {
   const playable = details.status === 'completed' && details.expectedFrames !== null;
@@ -279,7 +201,18 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
               <dd>{integer(current.skippedDuplicateFrames)}</dd>
             </div>
           </dl>
-          <PlaybackTrace state={current} />
+          <SignalTrace
+            label="Playback signal trace with original-frame and elapsed-time axes"
+            model={{
+              channels: current.preview.channels,
+              observations: current.preview.observations,
+              sampleRate: current.sampleRate!,
+              decimation: current.preview.decimation,
+              capacity: current.preview.capacity,
+              nextIndex: current.position,
+              expectedFrames: current.expectedFrames,
+            }}
+          />
         </>
       )}
     </section>

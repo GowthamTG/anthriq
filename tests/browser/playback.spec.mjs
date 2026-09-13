@@ -23,14 +23,39 @@ async function record(id, seconds) {
     '--seconds',
     String(seconds),
     '--display-name',
-    id === 'ui-recording' ? 'Playback reference' : 'API reference',
+    id === 'ui-recording'
+      ? 'Playback reference'
+      : id === 'gap-recording'
+        ? 'Playback gap reference'
+        : 'API reference',
   ]);
+}
+
+async function createGapRecording() {
+  await record('gap-recording', 0.5);
+  const directory = join(root, 'gap-recording');
+  const framePath = join(directory, 'frames.bin');
+  const frames = await readFile(framePath);
+  const width = 16;
+  await writeFile(
+    framePath,
+    Buffer.concat(
+      [1, 2, 5, 6, 7, 8].map((index) => frames.subarray(index * width, (index + 1) * width)),
+    ),
+  );
+  const metadataPath = join(directory, 'metadata.json');
+  const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+  await writeFile(
+    metadataPath,
+    JSON.stringify({ ...metadata, recordedFrames: 6, totalSamples: 12, droppedFrames: 4 }),
+  );
 }
 
 test.beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'scope-playback-browser-'));
   await record('api-recording', 0.3);
   await record('ui-recording', 0.5);
+  await createGapRecording();
   await record('incomplete-recording', 0.1);
   const metadataPath = join(root, 'incomplete-recording', 'metadata.json');
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
@@ -97,21 +122,48 @@ test('playback HTTP commands validate input and preserve one active session', as
 test('recording detail plays real observations once and restarts paused at zero', async ({
   page,
 }) => {
+  const consoleErrors = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
   await page.goto(`${base}/recordings?id=ui-recording`);
   await expect(page.getByRole('heading', { name: 'Recording details' })).toBeVisible();
   await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await expect(
+    page.getByRole('img', {
+      name: 'Playback signal trace with original-frame and elapsed-time axes',
+    }),
+  ).toBeVisible();
+  await expect(page.getByTestId('playback-visible-window')).toContainText('frames 0-9');
+  await expect(page.getByTestId('playback-visible-gaps')).toContainText('0');
+  await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
+  await expect(page.getByTestId('playback-trace').locator('canvas')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Play at 1×' })).toBeEnabled();
   await page.getByRole('button', { name: 'Play at 1×' }).click();
   await expect(page.getByTestId('playback-status')).toHaveText('Ended', { timeout: 3000 });
   await expect(page.getByTestId('playback-metrics')).toContainText('10');
   await expect(page.getByTestId('playback-metrics')).toContainText('20');
-  await expect(page.getByTestId('playback-latest-frame')).not.toContainText('—');
+  await expect(page.getByTestId('playback-latest-frame')).not.toContainText('Not available');
   await expect(page.getByTestId('playback-trace')).toBeVisible();
+  const plot = page.getByTestId('playback-trace').locator('.u-over');
+  const box = await plot.boundingBox();
+  expect(box).not.toBeNull();
+  await plot.hover({ position: { x: box.width / 2, y: box.height / 2 } });
+  await expect(page.getByTestId('playback-cursor-readout')).toContainText('Frame');
+  await expect(page.getByTestId('playback-cursor-readout')).toContainText('Channel 0');
+  await expect(page.getByTestId('playback-cursor-readout')).toContainText(' s |');
 
   const ended = await (await fetch(`${base}/api/playback`)).json();
   expect(ended).toMatchObject({ status: 'ended', position: 10, emittedFrames: 10 });
   const repeated = await (await post({ action: 'play', recordingId: 'ui-recording' })).json();
   expect(repeated).toMatchObject({ status: 'ended', position: 10, emittedFrames: 10 });
+
+  if (process.env.SCOPE_CAPTURE_T10_CHART_EVIDENCE) {
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t10/uplot-ended.png'),
+      fullPage: true,
+    });
+  }
 
   if (process.env.SCOPE_CAPTURE_T10_EVIDENCE) {
     await page.screenshot({
@@ -129,5 +181,47 @@ test('recording detail plays real observations once and restarts paused at zero'
   await page.getByRole('button', { name: 'Restart' }).click();
   await expect(page.getByTestId('playback-status')).toHaveText('Paused');
   await expect(page.getByTestId('playback-metrics')).toContainText('0 / 10');
-  await expect(page.getByTestId('playback-latest-frame')).toContainText('—');
+  await expect(page.getByTestId('playback-latest-frame')).toContainText('Not available');
+  await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
+  expect(consoleErrors).toEqual([]);
+});
+
+test('uPlot trace preserves initial, interior, and trailing gaps across replacement', async ({
+  page,
+}) => {
+  const consoleErrors = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  await page.goto(`${base}/recordings?id=gap-recording`);
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await page.getByRole('button', { name: 'Play at 1×' }).click();
+  await expect(page.getByTestId('playback-status')).toHaveText('Ended', { timeout: 3000 });
+  await expect(page.getByTestId('playback-latest-frame')).toContainText('8');
+  await expect(page.getByTestId('playback-visible-window')).toContainText('frames 0-9');
+  await expect(page.getByTestId('playback-visible-gaps')).toContainText('3');
+  await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
+  const snapshot = await (await fetch(`${base}/api/playback`)).json();
+  expect(snapshot.preview.observations.length).toBeLessThanOrEqual(256);
+  expect(snapshot.preview.channels.length).toBeLessThanOrEqual(4);
+
+  if (process.env.SCOPE_CAPTURE_T10_CHART_EVIDENCE) {
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t10/uplot-gap.png'),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByTestId('playback-trace')).toBeVisible();
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t10/uplot-narrow.png'),
+      fullPage: true,
+    });
+  }
+
+  await page.getByTestId('library-item').filter({ hasText: 'ui-recording' }).click();
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await expect(page.getByTestId('playback-latest-frame')).toContainText('Not available');
+  await expect(page.getByTestId('playback-visible-gaps')).toContainText('0');
+  await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
+  expect(consoleErrors).toEqual([]);
 });

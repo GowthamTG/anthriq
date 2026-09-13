@@ -94,7 +94,7 @@ export default function Acquire() {
   return <>
     <header className="topbar flex h-[86px] items-center justify-between border-b border-line px-12 max-[1050px]:px-7 max-[760px]:h-[70px] max-[760px]:px-5">
       <a href="/" className="brand flex items-center gap-3 text-[23px] font-extrabold tracking-[3px] max-[760px]:text-xl" aria-label="SCOPE home"><span className="brand-mark grid size-[30px] place-items-center bg-accent pr-[3px] text-[22px] tracking-[-3px] text-[#111]" aria-hidden="true">S</span>SCOPE<span className="brand-caption ml-[18px] font-mono text-[9px] font-normal tracking-[1.2px] text-muted max-[760px]:hidden">SIGNAL INSTRUMENTS</span></a>
-      <nav aria-label="Workspace" className="ml-auto mr-6 text-xs"><a href="/recordings" className="text-muted hover:text-white">Recordings ↗</a></nav>
+      <nav aria-label="Workspace" className="ml-auto mr-6 flex items-center gap-5 text-xs"><a href="/recordings" className="text-muted hover:text-white">Recordings</a><a href="/verify" className="text-muted hover:text-white">Verify ↗</a></nav>
       <div className="connection flex items-center gap-2.5 font-mono text-[11px] text-muted max-[760px]:gap-[7px] max-[760px]:text-[9px]"><span className={connected ? 'connection-dot online' : 'connection-dot'} /><span>{connected ? 'Local connection' : state ? 'Reconnecting' : 'Connecting'}</span></div>
     </header>
 

@@ -6,13 +6,13 @@ A local signal-acquisition workbench for a Node.js and React technical assessmen
 
 The complete [implementation specification](SPEC.md) contains the agreed architecture, 56 user stories, operation contracts, storage format, 30 acceptance scenarios, and delivery phases. It is published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issues/1), labeled `ready-for-agent`.
 
-The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) is merged. T02 adds runtime configuration; T03 adds the recordings library and prefix inspection. T04 adds bounded shutdown and process/disk failure handling. T05 adds temporary overload diagnostics, loss accounting, and recovery telemetry. The next individual phase is T06, independent verification.
+The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T05 are merged. T06 adds independent recording verification through the CLI and workbench.
 
-**T01–T05 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, overload/recovery diagnostics, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
+**T01–T06 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, overload/recovery diagnostics, independent streaming verification, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
 
 ## Stack and decision review
 
-Next.js/React with strict TypeScript and Tailwind CSS. The local Node server, acquisition owner, generator, recorder, storage reader, and CLI are TypeScript too. Node.js 24 runs their erasable types directly; no runtime transpiler or backend build is needed. Production builds use Next's supported Webpack option; Turbopack's PostCSS worker-port binding was blocked in the local build environment. Shared contracts live in `core/contracts.ts`. Playback and verification remain JavaScript drafts for later phases.
+Next.js/React with strict TypeScript and Tailwind CSS. The local Node server, acquisition owner, generator, recorder, storage reader, verifier, verification worker/owner, and CLI are TypeScript too. Node.js 24 runs their erasable types directly; no runtime transpiler or backend build is needed. Production builds use Next's supported Webpack option; Turbopack's PostCSS worker-port binding was blocked in the local build environment. Shared contracts live in `core/contracts.ts`. Playback remains a JavaScript draft for its later phase.
 
 The [decision audit](docs/decision-audit.md) reviews earlier choices and records corrections. [ADR 0003](docs/adr/0003-typescript-and-tailwind.md) amends the initial JavaScript/native-CSS choice while preserving the parent specification.
 
@@ -79,7 +79,19 @@ Unknown record options, repeated options, missing values, invalid numbers, and u
 
 **Input bounds are not throughput guarantees.** The high end of valid channel/rate settings may overload a machine; the source retains its clock and accounts for loss through the bounded-credit policy. Short default and nondefault tests are not sustained-performance evidence.
 
-The CLI's existing `verify`, `retrieve`, and `playback` commands remain development drafts. The nominal `verify` path is exercised as a smoke check, but exhaustive corruption validation and playback acceptance are assigned to later tickets.
+`retrieve` and `playback` remain development drafts. Verification is implemented as the independent streaming workflow below.
+
+## Verify a recording
+
+```sh
+npm run cli -- verify recordings/example
+```
+
+Verification physically scans every complete record in reusable chunks of approximately 64 KiB. It compares stored values with the deterministic final float32 expectation, retains bounded counters and first positions rather than an anomaly list, and uses the independently confirmed final source extent to find beginning, interior, and trailing loss.
+
+The command prints one `SCOPE-VERIFICATION/1` JSON report and atomically saves the same report as `verification.json` in the recording bundle. Exit `0` means PASS; exit `1` means a completed integrity or format FAIL report; exit `2` means invocation, I/O, concurrent-change, or report-persistence failure prevented a trustworthy report. Missing, adjacent duplicated, and incorrect scalar observations are separate and may overlap: a wrong duplicate increments both duplicated and incorrect counts. A malformed frame identity/order makes affected discrepancy totals unknown rather than fabricated.
+
+Open **Verify** in the workbench to select a completed recording and run the same verifier in a separate child process. Only one UI verification runs at a time; acquisition remains independently owned and responsive. Progress is coalesced, the result can be downloaded, and its file identity includes device, inode, byte size, and nanosecond modification time for metadata and frame data. Inspection marks a previous report stale when those files change. Finalized, completed-with-loss, verified, integrity-failed, and stale are distinct states.
 
 ## Demonstrate overload and recovery
 
@@ -125,7 +137,7 @@ The CI workflow runs a clean install, strict type checking, core tests, producti
 
 ## Phase boundary
 
-The implemented phases include configurable acquisition and inspection of its saved result. Live traces, verification UI, CSV export, playback controls, extended stress experiments, one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity PASS is fabricated in the interface.
+The implemented phases include configurable acquisition, inspection, overload recovery, and independent verification of saved results. Live traces, disposable corruption demonstrations, CSV export, playback controls, extended stress experiments, the one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity PASS is fabricated in the interface.
 
 ## Agreed direction
 

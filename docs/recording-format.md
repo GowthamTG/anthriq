@@ -8,7 +8,7 @@ A recording is one directory. Its name is the recording ID; the display name is 
 | `frames.bin` | Append-only physical frame records defined below |
 | `losses.jsonl` | One JSON object per known missing interval: start frame, exclusive end, frame/sample counts, and cause |
 | `metrics.jsonl` | Periodic telemetry written incrementally, not held as a growing in-memory history |
-| Future verification result | Belongs to this recording and must identify the checked file state. T03 does not create or consume a persisted PASS result; a prior result cannot establish validity after file changes. |
+| `verification.json` | Versioned streaming-verification report associated with the exact metadata and frame-file state checked. A changed identity, size, or modification time makes it stale. |
 
 ## Physical record layout
 
@@ -58,3 +58,13 @@ Pagination scans directory names and retains only the smallest limit+1 names aft
 Paging is a live view, not a frozen snapshot. Newly added IDs before the current cursor appear after returning to First page or refreshing from the beginning. Browser requests are canceled when selection/page changes so stale results cannot replace the current details.
 
 T05 adds optional generator emission-rate/gap/deficit, transport high-water, peak RSS, and recorder-stall observations. These are diagnostics rather than an integrity result; see [counter definitions](overload.md).
+
+## Verification report
+
+`verification.json` uses `format: SCOPE-VERIFICATION/1`. It records the recording ID and check time; recording duration; expected and physical frame/scalar counts; separate missing, adjacent-duplicated and incorrect scalar counts; first frame/channel positions; the duplicate physical ordinal; format-error count and first error; bytes/records scanned; elapsed milliseconds; and current/peak verifier RSS in bytes. Nonfinite stored values are incorrect and appear as JSON strings because JSON has no nonfinite number representation.
+
+The verifier streams all complete physical records in reusable chunks targeting 64 KiB. It retains counters, preceding/next indices, first positions, file identity and one progress snapshot; memory does not grow with recording duration or anomaly count. A wrong duplicate increments both the duplicated and incorrect classes. Unsafe, out-of-extent or decreasing identities invalidate precise discrepancy classification instead of producing invented totals.
+
+The checked state contains `dev`, `ino`, `size`, and `mtimeNs` for both `metadata.json` and `frames.bin`, captured through open handles and checked again before the atomic report replacement. Inspection reports `unverified`, `verified`, `integrity-failed`, or `stale`. Stale reports remain downloadable evidence but cannot establish the current recording's integrity.
+
+CLI exit status is 0 for PASS, 1 for a completed integrity/format FAIL report, and 2 when invocation or operational failure prevents a trustworthy persisted report. Invalid metadata, contradictions, partial records, non-completed lifecycle, and unconfirmed extent are reportable format failures. Missing/unreadable artifacts, concurrent mutation, worker failure, and inability to persist the report are operational failures.

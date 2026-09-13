@@ -86,10 +86,13 @@ test('an unknown waveform version is rejected instead of silently verified with 
   const metadata = JSON.parse(await readFile(path, 'utf8'));
   metadata.waveform = 'unknown-v2';
   await writeFile(path, JSON.stringify(metadata));
-  for (const command of ['inspect', 'verify']) {
-    await assert.rejects(cli(command, directory), error => {
-      assert.match(error.stderr, /Unsupported waveform/);
-      return true;
-    });
-  }
+  await assert.rejects(cli('inspect', directory), error => {
+    assert.match(error.stderr, /Unsupported waveform/);
+    return true;
+  });
+  await assert.rejects(cli('verify', directory), error => {
+    assert.equal(error.code, 1);
+    assert.match(JSON.parse(error.stdout).formatErrors.first, /Unsupported waveform/);
+    return true;
+  });
 });

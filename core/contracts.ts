@@ -56,8 +56,63 @@ export interface RecordingInspection extends RecordingMetadata {
   readableBytes: number;
   warnings: string[];
   condition: 'finalized' | 'incomplete' | 'attention';
+  verification: VerificationSummary;
   location?: string;
 }
+export type VerificationStatus = 'unverified' | 'verified' | 'integrity-failed' | 'stale';
+export interface FileIdentity { dev: string; ino: string; size: number; mtimeNs: string }
+export interface VerificationProgress {
+  recordsScanned: number;
+  totalRecords: number | null;
+  bytesScanned: number;
+  totalBytes: number;
+  percent: number | null;
+  elapsedMs: number;
+  rssBytes: number;
+}
+export interface VerificationPosition { frame: number; channel: number }
+export interface DuplicatePosition extends VerificationPosition { physicalOrdinal: number }
+export interface IncorrectPosition extends DuplicatePosition { expected: number; actual: number | string }
+export interface VerificationReport {
+  format: 'SCOPE-VERIFICATION/1';
+  recordingId: string;
+  checkedAt: string;
+  recordingDurationSeconds: number | null;
+  checkedFiles: { metadata: FileIdentity; frames: FileIdentity };
+  counts: {
+    expectedFrames: number | null;
+    expectedSamples: number | null;
+    recordedFrames: number | null;
+    recordedSamples: number | null;
+  };
+  discrepancies: {
+    missing: { samples: number | null; first: VerificationPosition | null };
+    duplicated: { samples: number | null; first: DuplicatePosition | null };
+    incorrect: { samples: number | null; first: IncorrectPosition | null };
+  };
+  formatErrors: { count: number; first: string | null };
+  execution: VerificationProgress & { peakRssBytes: number };
+  result: 'PASS' | 'FAIL';
+}
+export interface VerificationSummary {
+  status: VerificationStatus;
+  checkedAt?: string;
+  result?: VerificationReport['result'];
+}
+export type VerificationJobStatus = 'idle' | 'running' | 'passed' | 'failed-integrity' | 'failed-operational';
+export interface VerificationState {
+  status: VerificationJobStatus;
+  recordingId: string | null;
+  workerPid: number | null;
+  progress: VerificationProgress | null;
+  report: VerificationReport | null;
+  error: string | null;
+}
+export type VerificationWorkerCommand = { type: 'progress-ack' };
+export type VerificationWorkerMessage =
+  | { type: 'progress'; progress: VerificationProgress }
+  | { type: 'report'; report: VerificationReport }
+  | { type: 'error'; error: string };
 export interface Frame { index: number; values: number[] }
 export type RecorderStall = 'off' | 'scheduled' | 'active' | 'recovered';
 export interface AcquisitionMetrics {

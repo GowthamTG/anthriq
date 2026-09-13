@@ -47,7 +47,7 @@ test('CLI verification streams an independent clean fixture and persists its che
     duplicated: { samples: 0, first: null },
     incorrect: { samples: 0, first: null },
   });
-  assert.deepEqual(report.formatErrors, { count: 0, first: null });
+  assert.deepEqual(report.formatErrors, { count: 0, first: null, ordering: 'valid' });
   assert.equal(report.checkedFiles.frames.size, 96);
   assert.match(report.checkedFiles.frames.mtimeNs, /^\d+$/);
   assert.ok(report.execution.elapsedMs >= 0);

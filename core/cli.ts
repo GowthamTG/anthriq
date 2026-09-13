@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { once } from 'node:events';
 import { Acquisition } from './acquisition.ts';
 import { config } from './signal.ts';
-import { inspect, readFrames } from './storage.ts';
+import { inspect, parseChannelList, readFrames } from './storage.ts';
 import { verifyRecording } from './verify.ts';
 import { listRecordings } from './library.ts';
 import { Playback } from './playback.mjs';
@@ -54,11 +54,12 @@ try {
     }
   } else if (command === 'inspect') console.log(JSON.stringify(await inspect(directory!), null, 2));
   else if (command === 'retrieve') {
-    const metadata = await inspect(directory!);
-    const channels = options.channels ? options.channels.split(',').map(Number) : Array.from({ length: metadata.channels }, (_, i) => i);
-    const start = options.startSeconds !== undefined ? Math.ceil(Number(options.startSeconds) * metadata.sampleRate) : Number(options.start || 0);
-    const end = options.endSeconds !== undefined ? Math.ceil(Number(options.endSeconds) * metadata.sampleRate) : Number(options.end ?? metadata.expectedFrames);
-    for await (const frame of readFrames(directory!, { start, end, channels })) if (!process.stdout.write(JSON.stringify(frame) + '\n')) await once(process.stdout, 'drain');
+    for (const key of Object.keys(options)) if (!['channels', 'start', 'end', 'startSeconds', 'endSeconds', 'prefix'].includes(key)) throw new Error(`Unknown retrieve option: ${key}`);
+    const number = (key: string) => options[key] === undefined ? undefined : Number(options[key]);
+    const prefix = options.prefix === undefined ? false : options.prefix === 'true';
+    if (options.prefix !== undefined && !['true', 'false'].includes(options.prefix)) throw new Error('Prefix must be true or false');
+    const query = { channels: parseChannelList(options.channels), start: number('start'), end: number('end'), startSeconds: number('startSeconds'), endSeconds: number('endSeconds'), prefix };
+    for await (const frame of readFrames(directory!, query)) if (!process.stdout.write(JSON.stringify(frame) + '\n')) await once(process.stdout, 'drain');
   } else if (command === 'playback') {
     const playback = await new Playback(directory!, (frames: Frame[]) => { if (options.output === 'jsonl') for (const f of frames) process.stdout.write(JSON.stringify(f) + '\n'); }).init();
     if (options.speed) playback.setSpeed(Number(options.speed));

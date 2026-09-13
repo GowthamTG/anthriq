@@ -23,7 +23,7 @@ Indices are nondecreasing in a searchable recording. An adjacent repeated index 
 
 At defaults (C=32), W=136 bytes. At 4000 frames/second the frame file grows by **544,000 bytes/second**, or **1,958,400,000 bytes/hour**, excluding sidecars. Scalar float32 values contribute 1,843,200,000 bytes/hour; original frame indices contribute 115,200,000 bytes/hour.
 
-Float32 matches the deterministic rounded signal and keeps storage compact. Float64 would double value bytes without a requirement for that precision. JSON/CSV as primary storage adds size/parsing overhead; CSV remains a later export. A database adds setup without replacing local recording. Frame-major storage makes append, short writes, binary-search seeking, and prefix recovery simple; a channel-subset query still reads unselected channel bytes in its requested frames. Channel-blocked storage would reduce that read amplification but complicate writing and recovery.
+Float32 matches the deterministic rounded signal and keeps storage compact. Float64 would double value bytes without a requirement for that precision. JSON/CSV as primary storage adds size/parsing overhead; CSV is a streamed derived export. A database adds setup without replacing local recording. Frame-major storage makes append, short writes, binary-search seeking, and prefix recovery simple; a channel-subset query still reads unselected channel bytes in its requested frames. Channel-blocked storage would reduce that read amplification but complicate writing and recovery.
 
 ## Metadata contract
 
@@ -48,6 +48,14 @@ For physical file length L:
 - Partial trailing bytes = L mod W; these are excluded from the readable prefix.
 
 A prefix of complete records is structurally readable, not independently verified. Partial bytes, count/duration contradictions, or declared losses produce `condition: attention`. Non-finalized metadata is `incomplete` unless another warning requires attention. A structurally consistent completed recording is `finalized`; this never means verified or guaranteed lossless.
+
+## Range retrieval
+
+Retrieval uses half-open original-index intervals or time intervals converted with `ceil(seconds × sampleRate)`. A reader binary-searches stored frame indices by physical ordinal, then streams matching records in reusable approximately 64 KiB chunks. It retains stored gaps and adjacent duplicate indices; neither is interpolated, deduplicated, nor renumbered. Channels are zero-based and returned in requested order; omitted selection means all channels.
+
+The frame-major layout reads every channel value in each matching record even when only a subset is returned. Selecting K of C channels therefore has roughly C/K value-byte read amplification, plus the eight-byte frame index. A non-finalized or unconfirmed bundle is readable only through explicit intact-prefix inspection; its available bound is derived from the last complete stored record and does not claim a final duration.
+
+CSV export streams that same raw selection. Its header is `original_frame_index,time_seconds,channel_<n>...`, with selected channel headings in requested order; `time_seconds` is original frame index divided by sample rate. Empty valid selections contain only this header. JSON-lines retrieval retains `{ index, values }`. Both outputs preserve gaps and adjacent duplicates and never synthesize waveform values.
 
 ## Library and service
 

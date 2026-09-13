@@ -1,5 +1,5 @@
 import type { FileHandle } from 'node:fs/promises';
-import type { FileIdentity, RecordingMetadata, RecordingInspection, VerificationReport, VerificationSummary } from './contracts.ts';
+import type { FileIdentity, RangePreview, RangeQuery, RangeSelection, RecordingMetadata, RecordingInspection, VerificationReport, VerificationSummary } from './contracts.ts';
 import { open, writeFile, rename, stat } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { stride } from './signal.ts';
@@ -105,26 +105,77 @@ export async function lowerBound(file: FileHandle, count: number, width: number,
   while (low < high) {
     const mid = Math.floor((low + high) / 2);
     await readExact(file, index, mid * width);
-    if (Number(index.readBigUInt64LE()) < frame) low = mid + 1;
+    if (index.readBigUInt64LE() < BigInt(frame)) low = mid + 1;
     else high = mid;
   }
   return low;
 }
 
-export function selection(metadata: RecordingMetadata, options: { channels?: number[]; start?: number; end?: number } = {}) {
+function badRange(message: string): never { throw Object.assign(new Error(message), { statusCode: 400 }); }
+
+export function parseChannelList(raw: string | undefined) {
+  if (raw === undefined) return undefined;
+  const tokens = raw.split(',');
+  if (!tokens.length || tokens.some(token => !/^(0|[1-9][0-9]*)$/.test(token))) badRange('Choose comma-separated zero-based channel indices');
+  const channels = tokens.map(Number);
+  if (channels.some(channel => !Number.isSafeInteger(channel))) badRange('Choose safe zero-based channel indices');
+  return channels;
+}
+
+export function selection(metadata: RecordingMetadata, availableEnd: number, options: RangeQuery = {}): RangeSelection {
   const channels = options.channels ?? Array.from({ length: metadata.channels }, (_, i) => i);
-  if (!Array.isArray(channels) || !channels.length || new Set(channels).size !== channels.length || channels.some(c => !Number.isInteger(c) || c < 0 || c >= metadata.channels)) throw new Error('Choose unique, valid zero-based channel indices');
-  const start = options.start ?? 0;
-  const end = options.end ?? metadata.expectedFrames ?? metadata.recordedFrames;
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) throw new Error('Range must be nonnegative integer frame indices with end >= start');
-  return { start, end, channels };
+  if (!Array.isArray(channels) || !channels.length || new Set(channels).size !== channels.length || channels.some(c => !Number.isSafeInteger(c) || c < 0 || c >= metadata.channels)) badRange('Choose unique, valid zero-based channel indices');
+  const indexInput = options.start !== undefined || options.end !== undefined;
+  const timeInput = options.startSeconds !== undefined || options.endSeconds !== undefined;
+  if (indexInput && timeInput) badRange('Use either original-index bounds or time bounds, not both');
+  const value = (input: number | undefined, name: string) => {
+    if (input === undefined) return undefined;
+    if (!Number.isFinite(input) || input < 0) badRange(`${name} must be a nonnegative finite number`);
+    return input;
+  };
+  let start: number, end: number;
+  if (timeInput) {
+    const from = value(options.startSeconds, 'Start time') ?? 0;
+    const to = value(options.endSeconds, 'End time');
+    start = Math.ceil(from * metadata.sampleRate);
+    end = to === undefined ? availableEnd : Math.ceil(to * metadata.sampleRate);
+  } else {
+    start = value(options.start, 'Start index') ?? 0;
+    end = value(options.end, 'End index') ?? availableEnd;
+  }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || ((timeInput ? options.endSeconds : options.end) !== undefined && end < start)) badRange('Range bounds must resolve to safe frame indices with end >= start');
+  if ((metadata.status !== 'completed' || metadata.expectedFrames === null) && !options.prefix) badRange('Select the readable intact prefix before retrieving an incomplete recording');
+  return { start: Math.min(start, availableEnd), end: Math.max(Math.min(end, availableEnd), Math.min(start, availableEnd)), availableEnd, channels, prefix: Boolean(options.prefix) };
+}
+
+async function availableBound(file: FileHandle, metadata: RecordingInspection) {
+  if (!metadata.completeRecords) return 0;
+  const index = Buffer.allocUnsafe(8);
+  await readExact(file, index, (metadata.completeRecords - 1) * metadata.recordBytes);
+  const last = index.readBigUInt64LE();
+  if (last > BigInt(Number.MAX_SAFE_INTEGER)) throw Object.assign(new Error('Stored frame index exceeds the supported safe range'), { statusCode: 422 });
+  const bound = Number(last) + 1;
+  if (metadata.expectedFrames !== null && bound > metadata.expectedFrames) throw Object.assign(new Error('Stored frame index exceeds the confirmed source extent'), { statusCode: 422 });
+  return metadata.expectedFrames ?? bound;
 }
 
 // Reads at most 64 KiB of frame data at once. Callers consume the generator,
 // so export and playback need not materialize the entire requested interval.
-export async function* readFrames(directory: string, options: { channels?: number[]; start?: number; end?: number } = {}) {
+export async function rangeSelection(directory: string, options: RangeQuery = {}): Promise<{ inspection: RecordingInspection; selection: RangeSelection }> {
   const metadata = await inspect(directory);
-  const { start, end, channels } = selection(metadata, options);
+  if (metadata.verification.status === 'integrity-failed') {
+    const report = await readBoundedJson(join(directory, 'verification.json')) as Partial<VerificationReport>;
+    if (report.formatErrors?.ordering === 'invalid') throw Object.assign(new Error('Retrieval is unavailable because verification found malformed frame ordering'), { statusCode: 422 });
+  }
+  const file = await open(join(directory, 'frames.bin'), 'r');
+  try { return { inspection: metadata, selection: selection(metadata, await availableBound(file, metadata), options) }; }
+  finally { await file.close(); }
+}
+
+// Reads at most 64 KiB of frame data at once; the caller owns materialization.
+export async function* readFrames(directory: string, options: RangeQuery = {}) {
+  const { inspection: metadata, selection: chosen } = await rangeSelection(directory, options);
+  const { start, end, channels } = chosen;
   const file = await open(join(directory, 'frames.bin'), 'r');
   try {
     const first = await lowerBound(file, metadata.completeRecords, metadata.recordBytes, start);
@@ -136,10 +187,23 @@ export async function* readFrames(directory: string, options: { channels?: numbe
       await readExact(file, buffer, ordinal * metadata.recordBytes, count * metadata.recordBytes);
       for (let n = 0; n < count; n++) {
         const offset = n * metadata.recordBytes;
-        yield { index: Number(buffer.readBigUInt64LE(offset)), values: channels.map(c => buffer.readFloatLE(offset + 8 + c * 4)) };
+        const index = buffer.readBigUInt64LE(offset);
+        if (index > BigInt(Number.MAX_SAFE_INTEGER)) throw Object.assign(new Error('Stored frame index exceeds the supported safe range'), { statusCode: 422 });
+        yield { index: Number(index), values: channels.map(c => buffer.readFloatLE(offset + 8 + c * 4)) };
       }
     }
   } finally { await file.close(); }
+}
+
+export async function previewFrames(directory: string, options: RangeQuery = {}, limit = 200): Promise<RangePreview> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error('Preview limit must be a safe integer from 1 to 1000');
+  const { inspection, selection: chosen } = await rangeSelection(directory, options);
+  const observations = [] as RangePreview['observations'];
+  for await (const frame of readFrames(directory, options)) {
+    if (observations.length === limit) return { ...chosen, warnings: inspection.warnings, observations, truncated: true };
+    observations.push(frame);
+  }
+  return { ...chosen, warnings: inspection.warnings, observations, truncated: false };
 }
 
 // Full physical scan for verification, deliberately bypassing the sorted index

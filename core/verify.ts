@@ -43,6 +43,7 @@ export async function verifyRecording(directory: string, options: { onProgress?:
 
     let formatCount = 0;
     let firstFormat: string | null = null;
+    let ordering: VerificationReport['formatErrors']['ordering'] = metadata ? 'valid' : 'unknown';
     const formatError = (message: string) => { formatCount++; firstFormat ??= message; };
     if (metadataError) formatError(metadataError);
 
@@ -102,6 +103,7 @@ export async function verifyRecording(directory: string, options: { onProgress?:
           const rawIndex = buffer.readBigUInt64LE(recordOffset);
           if (rawIndex > BigInt(Number.MAX_SAFE_INTEGER)) {
             formatError(`Unsafe frame index at physical record ${physicalOrdinal}`);
+            ordering = 'invalid';
             identityTrusted = false;
             missing = duplicated = incorrect = null;
             continue;
@@ -109,6 +111,7 @@ export async function verifyRecording(directory: string, options: { onProgress?:
           const index = Number(rawIndex);
           if (index < previous) {
             formatError(`Decreasing frame index at physical record ${physicalOrdinal}`);
+            ordering = 'invalid';
             identityTrusted = false;
             missing = duplicated = incorrect = null;
           }
@@ -185,7 +188,7 @@ export async function verifyRecording(directory: string, options: { onProgress?:
         duplicated: { samples: duplicated, first: firstDuplicated },
         incorrect: { samples: incorrect, first: firstIncorrect },
       },
-      formatErrors: { count: formatCount, first: firstFormat },
+      formatErrors: { count: formatCount, first: firstFormat, ordering },
       execution: { recordsScanned, totalRecords: completeRecords, bytesScanned, totalBytes, percent: completeRecords === null ? null : 100, elapsedMs, rssBytes: finalRssBytes, peakRssBytes },
       result: formatCount === 0 && discrepancyTotal === 0 && missing !== null && duplicated !== null && incorrect !== null ? 'PASS' : 'FAIL',
     };

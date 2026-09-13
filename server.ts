@@ -3,11 +3,12 @@ import { readFile, stat } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import next from 'next';
 import { Acquisition } from './core/acquisition.ts';
-import { inspect } from './core/storage.ts';
+import { inspect, parseChannelList, previewFrames, rangeSelection, readFrames } from './core/storage.ts';
 import { listRecordings, recordingId } from './core/library.ts';
 import { config, ConfigurationError } from './core/config.ts';
 import { Verification } from './core/verification.ts';
 import { DIAGNOSTIC_SCENARIOS, type DiagnosticScenario } from './core/contracts.ts';
+import { csvLines } from './core/export.ts';
 
 const dev = process.argv.includes('--dev');
 const port = Number(process.env.PORT || 3000);
@@ -26,6 +27,29 @@ const json = (res: ServerResponse, status: number, value: unknown) => {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(value));
 };
+const rangeQuery = (url: URL) => {
+  const permitted = ['channels', 'start', 'end', 'startSeconds', 'endSeconds', 'prefix'];
+  for (const key of url.searchParams.keys()) if (!permitted.includes(key) || url.searchParams.getAll(key).length !== 1) throw Object.assign(new Error(`Invalid range query parameter: ${key}`), { statusCode: 400 });
+  const number = (key: string) => { const raw = url.searchParams.get(key); return raw === null ? undefined : Number(raw); };
+  const rawPrefix = url.searchParams.get('prefix');
+  if (rawPrefix !== null && !['true', 'false'].includes(rawPrefix)) throw Object.assign(new Error('prefix must be true or false'), { statusCode: 400 });
+  const rawChannels = url.searchParams.get('channels');
+  return { channels: parseChannelList(rawChannels ?? undefined), start: number('start'), end: number('end'), startSeconds: number('startSeconds'), endSeconds: number('endSeconds'), prefix: rawPrefix === 'true' };
+};
+async function writeLines(res: ServerResponse, lines: AsyncIterable<string>) {
+  for await (const line of lines) {
+    if (res.destroyed) break;
+    if (!res.write(line)) await new Promise<void>(resolve => {
+      const done = () => { res.off('drain', done); res.off('close', done); resolve(); };
+      res.once('drain', done); res.once('close', done);
+    });
+    if (res.destroyed) break;
+  }
+}
+async function streamLines(res: ServerResponse, lines: AsyncIterable<string>) {
+  try { await writeLines(res, lines); if (!res.destroyed) res.end(); }
+  catch (error) { res.destroy(error as Error); }
+}
 
 function event(res: ServerResponse) {
   // Never queue another update behind a slow reader; snapshots are replaceable.
@@ -114,6 +138,32 @@ const server = createServer(async (req, res) => {
       const report = await readFile(path);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="${id}-verification.json"`, 'Cache-Control': 'no-store' });
       return res.end(report);
+    }
+    const previewMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/range-preview$/);
+    if (req.method === 'GET' && previewMatch) {
+      const id = decodeURIComponent(previewMatch[1]);
+      if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
+      return json(res, 200, await previewFrames(join(root, id), rangeQuery(url)));
+    }
+    const retrieveMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/retrieve$/);
+    if (req.method === 'GET' && retrieveMatch) {
+      const id = decodeURIComponent(retrieveMatch[1]);
+      if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
+      const query = rangeQuery(url);
+      await rangeSelection(join(root, id), query);
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' });
+      return streamLines(res, (async function* () { for await (const frame of readFrames(join(root, id), query)) yield JSON.stringify(frame) + '\n'; })());
+    }
+    const exportMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/export$/);
+    if (req.method === 'GET' && exportMatch) {
+      const id = decodeURIComponent(exportMatch[1]);
+      if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
+      const format = url.searchParams.get('format');
+      if (format !== 'csv' || url.searchParams.getAll('format').length !== 1) return json(res, 400, { error: 'Provide exactly format=csv' });
+      const query = rangeQuery(new URL(`${url.pathname}?${[...url.searchParams].filter(([key]) => key !== 'format').map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`, url));
+      await rangeSelection(join(root, id), query);
+      res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${id}-selection.csv"`, 'Cache-Control': 'no-store' });
+      return streamLines(res, csvLines(join(root, id), query));
     }
     if (req.method === 'GET' && url.pathname.startsWith('/api/recordings/')) {
       const id = decodeURIComponent(url.pathname.slice('/api/recordings/'.length));

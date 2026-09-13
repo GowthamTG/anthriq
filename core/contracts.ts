@@ -99,7 +99,7 @@ export interface VerificationReport {
     duplicated: { samples: number | null; first: DuplicatePosition | null };
     incorrect: { samples: number | null; first: IncorrectPosition | null };
   };
-  formatErrors: { count: number; first: string | null };
+  formatErrors: { count: number; first: string | null; ordering: 'valid' | 'invalid' | 'unknown' };
   execution: VerificationProgress & { peakRssBytes: number };
   result: 'PASS' | 'FAIL';
 }
@@ -125,6 +125,26 @@ export type VerificationWorkerMessage =
   | { type: 'report'; report: VerificationReport }
   | { type: 'error'; error: string };
 export interface Frame { index: number; values: number[] }
+export interface RangeQuery {
+  channels?: number[];
+  start?: number;
+  end?: number;
+  startSeconds?: number;
+  endSeconds?: number;
+  prefix?: boolean;
+}
+export interface RangeSelection {
+  start: number;
+  end: number;
+  availableEnd: number;
+  channels: number[];
+  prefix: boolean;
+}
+export interface RangePreview extends RangeSelection {
+  warnings: string[];
+  observations: Frame[];
+  truncated: boolean;
+}
 export type RecorderStall = 'off' | 'scheduled' | 'active' | 'recovered';
 export interface AcquisitionMetrics {
   id: string;

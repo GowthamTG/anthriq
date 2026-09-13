@@ -6,9 +6,9 @@ A local signal-acquisition workbench for a Node.js and React technical assessmen
 
 The complete [implementation specification](SPEC.md) contains the agreed architecture, 56 user stories, operation contracts, storage format, 30 acceptance scenarios, and delivery phases. It is published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issues/1), labeled `ready-for-agent`.
 
-The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T06 are merged. T07 adds safe, visible integrity-failure demonstrations.
+The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T07 are merged. T08 adds exact range and channel-subset inspection; T09 adds streamed CSV export.
 
-**T01–T07 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, overload/recovery diagnostics, independent streaming verification, disposable integrity scenarios, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
+**T01–T09 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, overload/recovery diagnostics, independent streaming verification, disposable integrity scenarios, exact range/channel inspection, streamed CSV export, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
 
 ## Stack and decision review
 
@@ -79,7 +79,20 @@ Unknown record options, repeated options, missing values, invalid numbers, and u
 
 **Input bounds are not throughput guarantees.** The high end of valid channel/rate settings may overload a machine; the source retains its clock and accounts for loss through the bounded-credit policy. Short default and nondefault tests are not sustained-performance evidence.
 
-`retrieve` and `playback` remain development drafts. Verification is implemented as the independent streaming workflow below.
+`playback` remains a development draft. Retrieval is available as streaming JSON-lines; CSV downloads are available from a validated recording-detail selection.
+
+## Retrieve an exact range
+
+```sh
+npm run cli -- retrieve recordings/example --start 0 --end 100 --channels 3,0
+npm run cli -- retrieve recordings/example --start-seconds 0.125 --end-seconds 0.25
+```
+
+Ranges are half-open. Use either original indices or seconds, not both; seconds convert with `ceil(seconds × sample rate)`. Channels are zero-based and retain the requested order; omission selects all channels. Each JSON-lines observation has its stored `index` and values in that channel order. Gaps and duplicate indices remain raw evidence. Valid ranges are intersected with the known available timeline.
+
+Incomplete or unconfirmed recordings require `--prefix true` (and an explicit acknowledgement in the UI) to inspect only their readable intact prefix. The detail view shows at most 200 observations; the CLI and `GET /api/recordings/:id/retrieve` stream the complete JSON-lines response. After a preview, **Download CSV** streams the same normalized selection from `GET /api/recordings/:id/export?format=csv` without loading it in the browser.
+
+CSV columns are `original_frame_index`, `time_seconds`, then `channel_<n>` in requested order. `time_seconds` is the stored original frame index divided by the recording sample rate. CSV and JSON-lines preserve gaps and duplicate observations exactly. Frame-major storage still reads every channel value within matching records, so selecting K of C channels costs roughly C/K value-byte amplification plus frame-index bytes.
 
 ## Verify a recording
 
@@ -139,11 +152,11 @@ npm run test:browser
 
 On Linux, use `npx playwright install --with-deps chromium` when system browser dependencies are absent. Browser tests start their own production servers on ports 3100–3104 and use isolated temporary recording locations. Core tests launch real processes and inspect real files, including an independently calculated float32 reference value. Test artifacts and recordings are excluded from Git.
 
-The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md), [T02 configuration evidence](docs/evidence/t02/README.md), [T03 library evidence](docs/evidence/t03/README.md), [T04 failure evidence](docs/evidence/t04/README.md), [T05 overload evidence](docs/evidence/t05/README.md), [T06 verification evidence](docs/evidence/t06/README.md), and [T07 diagnostic evidence](docs/evidence/t07/README.md) distinguish completed local checks from the later sustained-performance work.
+The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md), [T02 configuration evidence](docs/evidence/t02/README.md), [T03 library evidence](docs/evidence/t03/README.md), [T04 failure evidence](docs/evidence/t04/README.md), [T05 overload evidence](docs/evidence/t05/README.md), [T06 verification evidence](docs/evidence/t06/README.md), [T07 diagnostic evidence](docs/evidence/t07/README.md), [T08 range evidence](docs/evidence/t08/README.md), and [T09 export evidence](docs/evidence/t09/README.md) distinguish completed local checks from the later sustained-performance work.
 
 ## Phase boundary
 
-The implemented phases include configurable acquisition, inspection, overload recovery, independent verification, and disposable corruption demonstrations. Live traces, CSV export, playback controls, extended stress experiments, the one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity result is fabricated in the interface.
+The implemented phases include configurable acquisition, inspection, range retrieval, CSV export, overload recovery, independent verification, and disposable corruption demonstrations. Live traces, playback controls, extended stress experiments, the one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity result is fabricated in the interface.
 
 ## Agreed direction
 

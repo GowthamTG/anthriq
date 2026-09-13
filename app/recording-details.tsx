@@ -1,4 +1,5 @@
 import type { RecordingInspection } from '../core/contracts';
+import { RangeInspector } from './range-inspector';
 
 const number = (value: number | null | undefined) => value == null ? 'Unknown' : value.toLocaleString('en-US');
 const timestamp = (value: string | undefined) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Unknown';
@@ -46,5 +47,6 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
           <div><dt>Partial trailing bytes</dt><dd data-testid="trailing-bytes">{details.trailingBytes}</dd></div>
         </dl>
         <div className="location grid gap-2.5 border-t border-line pt-5"><span className="micro">LOCAL RECORDING</span><code>{details.location}</code></div>
+        <RangeInspector details={details} />
       </section>;
 }

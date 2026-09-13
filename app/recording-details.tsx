@@ -28,6 +28,9 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
           <div><dt>Expected frames</dt><dd data-testid="expected-frames">{number(details.expectedFrames)}</dd></div>
           <div><dt>Metadata frame count</dt><dd data-testid="saved-frames">{number(details.recordedFrames)}</dd></div>
           <div><dt>Metadata scalar count</dt><dd>{number(details.totalSamples)}</dd></div>
+          <div><dt>Declared lost frames</dt><dd>{number(details.droppedFrames)}</dd></div>
+          <div><dt>Sample-byte budget</dt><dd>{number(details.bufferBytes)} bytes</dd></div>
+          <div><dt>Temporary recorder stall</dt><dd>{details.stallForMs ? `${number(details.stallForMs)} ms after ${number(details.stallAfterSeconds)} s` : 'Off'}</dd></div>
           <div><dt>Binary layout</dt><dd>Indexed float32 · Little-endian</dd></div>
           <div><dt>File size</dt><dd>{number(details.fileBytes)} bytes</dd></div>
           <div><dt>Physical complete frames</dt><dd data-testid="physical-frames">{number(details.completeRecords)}</dd></div>

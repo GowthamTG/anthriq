@@ -5,6 +5,8 @@ export interface Settings {
   bufferBytes: number;
   seconds: number;
   writeDelayMs: number;
+  stallAfterSeconds: number;
+  stallForMs: number;
   displayName: string;
 }
 export type SettingsInput = Partial<Record<keyof Settings, number | string>>;
@@ -17,6 +19,11 @@ export interface GeneratorMetrics {
   rssBytes: number;
   maxLagMs: number;
   pacingErrorFrames: number;
+  emissionDeficitFrames: number;
+  emissionRateFramesPerSecond: number;
+  maxEmissionGapMs: number;
+  peakOutstandingBytes: number;
+  peakRssBytes: number;
 }
 export interface RecordingMetadata extends Settings {
   format: string;
@@ -39,6 +46,7 @@ export interface RecordingMetadata extends Settings {
   generator?: GeneratorMetrics;
   peakQueueBytes?: number;
   recorderPeakRssBytes?: number;
+  recorderStall?: RecorderStall;
   error?: string;
 }
 export interface RecordingInspection extends RecordingMetadata {
@@ -51,6 +59,7 @@ export interface RecordingInspection extends RecordingMetadata {
   location?: string;
 }
 export interface Frame { index: number; values: number[] }
+export type RecorderStall = 'off' | 'scheduled' | 'active' | 'recovered';
 export interface AcquisitionMetrics {
   id: string;
   status: RecordingMetadata['status'];
@@ -65,6 +74,7 @@ export interface AcquisitionMetrics {
   peakQueueBytes: number;
   bufferBytes: number;
   recorderRssBytes: number;
+  recorderStall: RecorderStall;
   elapsedSeconds: number;
   generator: Partial<GeneratorMetrics>;
 }

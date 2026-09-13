@@ -6,9 +6,9 @@ A local signal-acquisition workbench for a Node.js and React technical assessmen
 
 The complete [implementation specification](SPEC.md) contains the agreed architecture, 56 user stories, operation contracts, storage format, 30 acceptance scenarios, and delivery phases. It is published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issues/1), labeled `ready-for-agent`.
 
-The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) is merged. T02 adds runtime configuration; T03 adds the recordings library and prefix inspection. T04 adds bounded shutdown and process/disk failure handling; the next individual phase is T05, overload accounting.
+The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01 ([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) is merged. T02 adds runtime configuration; T03 adds the recordings library and prefix inspection. T04 adds bounded shutdown and process/disk failure handling. T05 adds temporary overload diagnostics, loss accounting, and recovery telemetry. The next individual phase is T06, independent verification.
 
-**T01–T04 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
+**T01–T05 are implemented:** local launch, configurable continuous/timed acquisition, real telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection, bounded failure cleanup, overload/recovery diagnostics, and CLI/browser checks. The remaining assessment tickets are still open; this is not the complete assessment submission.
 
 ## Stack and decision review
 
@@ -71,13 +71,28 @@ Record options:
 | `--seconds` | Finite nonnegative duration; default 0 means until stopped |
 | `--display-name` | Optional text, up to 120 characters; whitespace trimmed; never used as the directory path |
 | `--buffer-bytes` | Integer 4,096–67,108,864; default 4,194,304 |
-| `--write-delay-ms` | Diagnostic recorder delay from 0–5,000 ms; default 0, comprehensive overload experiments are T05 |
+| `--stall-after-seconds` | Diagnostic stall onset, 0–86,400 seconds after source start; default 0 |
+| `--stall-for-ms` | One recorder stall, integer 0–5,000 milliseconds; default 0 disables it |
+| `--write-delay-ms` | Diagnostic recorder delay from 0–5,000 ms; default 0, per-batch delay; use the temporary stall below for recovery |
 
 Unknown record options, repeated options, missing values, invalid numbers, and unsafe timed extents are rejected before creating a recording or spawning children. Zero duration has no arbitrary time limit. Finite disk capacity and the exact integer range remain practical limits: frame extent, scalar count, and byte offset must each fit `Number.MAX_SAFE_INTEGER` (9,007,199,254,740,991). Continuous generation also checks that bound before encoding data. Requested timed extent is `floor(seconds × sampleRate)`.
 
 **Input bounds are not throughput guarantees.** The high end of valid channel/rate settings may overload a machine; the source retains its clock and accounts for loss through the bounded-credit policy. Short default and nondefault tests are not sustained-performance evidence.
 
 The CLI's existing `verify`, `retrieve`, and `playback` commands remain development drafts. The nominal `verify` path is exercised as a smoke check, but exhaustive corruption validation and playback acceptance are assigned to later tickets.
+
+## Demonstrate overload and recovery
+
+Expand **Overload diagnostics** in the setup panel. Choose 32 channels, 4,000 Hz, an 8,192-byte buffer, a stall after 0.5 seconds lasting 2,000 ms, and a five-second duration. Start and watch the stall, loss detection, resumed writes, and **Completed with loss**. It means the accepted data finalized; it never means verified PASS.
+
+The same diagnostic works from the CLI:
+
+```sh
+npm run cli -- record recordings/overload --seconds 5 --buffer-bytes 8192 --stall-after-seconds 0.5 --stall-for-ms 2000
+npm run cli -- inspect recordings/overload
+```
+
+Use a new directory each time. Diagnostics are off by default; set Temporary stall back to 0 for nominal capture. Settings persist in the workbench until changed. See [overload accounting and telemetry](docs/overload.md) for exact counter meanings, loss intervals, memory bounds, and timing limitations.
 
 ## Architecture and recording format
 
@@ -106,11 +121,11 @@ npm run test:browser
 
 On Linux, use `npx playwright install --with-deps chromium` when system browser dependencies are absent. Browser tests start their own production servers on ports 3100, 3101, 3102, and 3104 and use isolated temporary recording locations. Core tests launch real processes and inspect real files, including an independently calculated float32 reference value. Test artifacts and recordings are excluded from Git.
 
-The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md) , [T02 configuration evidence](docs/evidence/t02/README.md), [T03 library evidence](docs/evidence/t03/README.md), and [T04 failure evidence](docs/evidence/t04/README.md) distinguish completed local checks from the later sustained-performance work.
+The CI workflow runs a clean install, strict type checking, core tests, production build, and Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01/README.md) , [T02 configuration evidence](docs/evidence/t02/README.md), [T03 library evidence](docs/evidence/t03/README.md), [T04 failure evidence](docs/evidence/t04/README.md), and [T05 overload evidence](docs/evidence/t05/README.md) distinguish completed local checks from the later sustained-performance work.
 
 ## Phase boundary
 
-The implemented phases include configurable acquisition and inspection of its saved result. Live traces, verification UI, CSV export, playback controls, comprehensive overload experiments, one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity PASS is fabricated in the interface.
+The implemented phases include configurable acquisition and inspection of its saved result. Live traces, verification UI, CSV export, playback controls, extended stress experiments, one-hour benchmark, final video, and hosting remain in subsequent tickets. No waveform or integrity PASS is fabricated in the interface.
 
 ## Agreed direction
 

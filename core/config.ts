@@ -19,7 +19,7 @@ export function config(input: unknown = {}): Settings {
     throw new ConfigurationError({ configuration: 'Configuration must be an object' });
   }
   const raw = input as Record<string, unknown>;
-  const defaults = { channels: 32, sampleRate: 4000, seed: 42, bufferBytes: 4194304, seconds: 0, writeDelayMs: 0 };
+  const defaults = { channels: 32, sampleRate: 4000, seed: 42, bufferBytes: 4194304, seconds: 0, writeDelayMs: 0, stallAfterSeconds: 0, stallForMs: 0 };
   const fields: Record<string, string> = {};
   for (const key of Object.keys(raw)) {
     if (key !== 'displayName' && !Object.hasOwn(defaults, key)) throw new ConfigurationError({ configuration: `Unknown setting: ${key}` });
@@ -37,6 +37,8 @@ export function config(input: unknown = {}): Settings {
   }
   if (result.seconds < 0) fields.seconds = 'Duration must be zero (until stopped) or positive';
   if (result.writeDelayMs < 0 || result.writeDelayMs > 5000) fields.writeDelayMs = 'Recorder delay must be from 0 to 5000 milliseconds';
+  if (result.stallAfterSeconds < 0 || result.stallAfterSeconds > 86400) fields.stallAfterSeconds = 'Stall onset must be from 0 to 86400 seconds';
+  if (!Number.isSafeInteger(result.stallForMs) || result.stallForMs < 0 || result.stallForMs > 5000) fields.stallForMs = 'Temporary stall must be an integer from 0 to 5000 milliseconds';
   const frames = Math.floor(result.seconds * result.sampleRate);
   if (!safeExtent(frames, result.channels)) {
     fields.seconds = 'Duration exceeds the safe frame, sample-count, or file-offset range';

@@ -1,6 +1,6 @@
 import type { Settings } from '../core/contracts';
 
-export type ConfigurationDraft = Record<'channels' | 'sampleRate' | 'seed' | 'seconds' | 'displayName', string>;
+export type ConfigurationDraft = Record<'channels' | 'sampleRate' | 'seed' | 'seconds' | 'displayName' | 'bufferBytes' | 'stallAfterSeconds' | 'stallForMs', string>;
 
 export function draftFrom(settings: Settings): ConfigurationDraft {
   return {
@@ -9,6 +9,9 @@ export function draftFrom(settings: Settings): ConfigurationDraft {
     seed: String(settings.seed),
     seconds: String(settings.seconds),
     displayName: settings.displayName || '',
+    bufferBytes: String(settings.bufferBytes),
+    stallAfterSeconds: String(settings.stallAfterSeconds ?? 0),
+    stallForMs: String(settings.stallForMs ?? 0),
   };
 }
 
@@ -42,6 +45,22 @@ export function ConfigurationForm({ draft, fields, disabled, onChange, onStart }
         {fields[key] && <p id={`${key}-error`} className="mt-2 text-xs leading-relaxed text-[#ff9c89]">{fields[key]}</p>}
       </div>)}
     </fieldset>
+    <details className="mt-5 border-t border-line pt-4">
+      <summary className="cursor-pointer text-xs text-muted">Overload diagnostics</summary>
+      <p className="my-3 text-xs leading-relaxed text-muted">Off by default. A temporary stall pauses disk writes once, then resumes automatically. The source keeps running; a small buffer makes loss visible.</p>
+      <fieldset disabled={disabled} className="grid grid-cols-2 gap-3">
+        {([
+          ['bufferBytes', 'Buffer budget', 'Bytes · 4,096–67,108,864'],
+          ['stallAfterSeconds', 'Stall after', 'Seconds after source start'],
+          ['stallForMs', 'Temporary stall', 'Milliseconds · 0 disables · max 5,000'],
+        ] as const).map(([key, label, hint]) => <div key={key} className={key === 'bufferBytes' ? 'col-span-2' : ''}>
+          <label htmlFor={key} className="mb-2 block text-xs text-muted">{label}</label>
+          <input id={key} type="number" step={key === 'stallAfterSeconds' ? 'any' : '1'} value={draft[key]} onChange={event => onChange(key, event.target.value)} aria-invalid={Boolean(fields[key])} aria-describedby={`${key}-hint${fields[key] ? ` ${key}-error` : ''}`} className={inputClass} />
+          <p id={`${key}-hint`} className="mt-2 text-[10px] leading-relaxed text-muted">{hint}</p>
+          {fields[key] && <p id={`${key}-error`} className="mt-2 text-xs text-[#ff9c89]">{fields[key]}</p>}
+        </div>)}
+      </fieldset>
+    </details>
     <div className="mt-5 flex items-center justify-between border-t border-line pt-4 text-xs text-muted">
       <span>Aggregate sample rate</span>
       <span><output data-testid="aggregate-rate" className="font-mono text-sm text-[#f0f0eb]">{Number.isSafeInteger(aggregate) && aggregate > 0 ? aggregate.toLocaleString('en-US') : '—'}</output> values/s</span>

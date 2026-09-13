@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { AcquisitionState, RecordingInspection } from '../core/contracts';
+import { OverloadTelemetry } from './overload-telemetry';
 import { RecordingDetails } from './recording-details';
 import { config } from '../core/config';
 import { ConfigurationForm, draftFrom, type ConfigurationDraft } from './configuration-form';
@@ -50,6 +51,7 @@ export default function Acquire() {
   const complete = status === 'completed';
   const metadata = state?.metadata;
   const metrics = state?.metrics;
+  const lost = complete ? metadata?.droppedFrames : metrics?.generator?.droppedFrames;
   const frames = complete ? metadata?.recordedFrames : metrics?.recordedFrames;
   const samples = complete ? metadata?.totalSamples : metrics?.totalSamples;
   const size = complete && metadata ? metadata.recordedFrames * metadata.recordBytes : metrics?.fileBytes;
@@ -107,7 +109,7 @@ export default function Acquire() {
 
       <div className="workspace grid grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)] border border-line max-[1050px]:grid-cols-[minmax(0,1.4fr)_minmax(300px,1fr)] max-[760px]:grid-cols-1">
         <section className="instrument flex min-w-0 flex-col bg-panel" aria-label="Acquisition measurements">
-          <div className="instrument-heading flex items-center justify-between border-b border-line px-[30px] py-6 max-[1050px]:px-[22px] max-[760px]:p-5"><span className="micro">RECORDING TELEMETRY</span><span className={`state state-${status}`} data-testid="acquisition-state" role="status">{state ? names[status] : 'Connecting'}</span></div>
+          <div className="instrument-heading flex items-center justify-between border-b border-line px-[30px] py-6 max-[1050px]:px-[22px] max-[760px]:p-5"><span className="micro">RECORDING TELEMETRY</span><span className={`state state-${status}${lost ? ' state-loss' : ''}`} data-testid="acquisition-state" role="status">{state ? complete && lost ? 'Completed with loss' : names[status] : 'Connecting'}</span></div>
           <div className="primary-reading flex flex-1 flex-col justify-center px-[30px] pt-[35px] pb-[30px] max-[1050px]:px-[22px] max-[760px]:px-5 max-[760px]:py-[25px]">
             <div className="reading-label flex items-center gap-3.5 text-sm text-[#c7cbc6]">Recorded samples <span>ALL CHANNELS</span></div>
             <output className="sample-count" data-testid="recorded-samples">{number(samples)}</output>
@@ -119,16 +121,17 @@ export default function Acquire() {
             <div><span className="micro">FRAME DATA</span><output>{bytes(size)}</output><span>{number(measuredChannels == null ? undefined : 8 + 4 * measuredChannels)} bytes per frame</span></div>
           </div>
           <div className="buffer border-t border-line px-[30px] py-[25px] max-[1050px]:px-[22px] max-[760px]:px-5 max-[760px]:py-[23px]">
-            <div><span className="micro">RECORDING BUFFER</span><span>{queued == null ? 'Awaiting acquisition' : `${bytes(queued)} / ${bytes(budget)}`}</span></div>
+            <div><span className="micro">RECORDER QUEUE</span><span>{queued == null ? 'Awaiting acquisition' : `${bytes(queued)} / ${bytes(budget)}`}</span></div>
             <div className="buffer-track mt-4 h-1 bg-[#343835]" role="meter" aria-label="Recording buffer usage" aria-valuemin={0} aria-valuemax={100} aria-valuenow={bufferPercent}><span style={{ width: `${bufferPercent}%` }} /></div>
             <p>{complete ? 'Accepted samples drained before finalization.' : 'A fixed buffer keeps recording memory independent of run duration.'}</p>
           </div>
+          <OverloadTelemetry state={state} />
           <div className="record-id flex items-center gap-[18px] border-t border-line bg-panel-deep px-[30px] py-5 max-[1050px]:px-[22px] max-[760px]:flex-wrap max-[760px]:gap-2 max-[760px]:px-5 max-[760px]:py-[18px]"><span className="micro">RECORDING ID</span><code data-testid="recording-id">{state?.id || 'Assigned when acquisition starts'}</code></div>
         </section>
 
         <aside className="control-panel border-l border-line bg-[#191b19] px-7 py-[26px] max-[1050px]:px-[22px] max-[1050px]:py-[25px] max-[760px]:border-t max-[760px]:border-l-0 max-[760px]:px-5" aria-label="Acquisition controls">
           <div className="control-heading flex items-center justify-between"><span className="micro">INSTRUMENT SETUP</span><span className="default-label border border-[#424641] px-[7px] py-[5px] font-mono text-[9px] tracking-[1px] text-muted">{active ? 'LOCKED' : 'EDITABLE'}</span></div>
-          <h2>{complete ? 'Safely on disk.' : status === 'recording' ? 'Capture in progress.' : status === 'stopping' ? 'Finishing the record.' : status === 'failed' ? 'Attention required.' : 'Ready when you are.'}</h2>
+          <h2>{complete ? lost ? 'Saved with gaps.' : 'Safely on disk.' : status === 'recording' ? 'Capture in progress.' : status === 'stopping' ? 'Finishing the record.' : status === 'failed' ? 'Attention required.' : 'Ready when you are.'}</h2>
           <p className="control-description m-0 min-h-11 max-w-[330px] text-xs leading-[1.8] text-muted max-[760px]:min-h-0 max-[760px]:max-w-none">{descriptions[status]}</p>
           <ConfigurationForm draft={draft} fields={fields} disabled={!connected || busy || active} onChange={changeSetting} onStart={() => command('start')} />
           <div className="controls grid gap-[9px] max-[760px]:fixed max-[760px]:inset-x-0 max-[760px]:bottom-0 max-[760px]:z-10 max-[760px]:grid-cols-[1.2fr_1fr] max-[760px]:border-t max-[760px]:border-line max-[760px]:bg-background max-[760px]:px-5 max-[760px]:pt-3.5 max-[760px]:pb-[max(14px,env(safe-area-inset-bottom))] max-[760px]:[&_button]:min-h-[46px]">
@@ -140,14 +143,14 @@ export default function Acquire() {
       </div>
 
       {complete && <section className="saved-panel flex items-center justify-between gap-6 border border-t-0 border-line bg-[#191c18] px-[30px] py-[25px] max-[1050px]:items-start max-[760px]:flex-col max-[760px]:gap-5 max-[760px]:px-5 max-[760px]:py-[23px]" aria-label="Saved recording">
-        <div className="saved-title flex items-center gap-5"><span className="saved-symbol grid size-[34px] shrink-0 place-items-center border border-[#565f4f] text-[17px] text-[#c1cfb2]" aria-hidden="true">✓</span><div><p className="micro">ACQUISITION COMPLETE</p><h2>Recording saved</h2><p>Accepted samples are on disk and metadata is finalized.</p></div></div>
+        <div className="saved-title flex items-center gap-5"><span className="saved-symbol grid size-[34px] shrink-0 place-items-center border border-[#565f4f] text-[17px] text-[#c1cfb2]" aria-hidden="true">{lost ? '!' : '✓'}</span><div><p className="micro">ACQUISITION COMPLETE</p><h2>Recording saved</h2><p>{lost ? `${number(lost)} frames lost · ${number(lost * (state?.settings.channels ?? 0))} scalar values missing. Accepted samples are saved.` : 'Accepted samples are on disk and metadata is finalized.'}</p></div></div>
         <div className="saved-action grid shrink-0 gap-3 text-right max-[760px]:w-full max-[760px]:text-left"><span className="unverified font-mono text-[9px] text-[#c0ba9c]">Integrity not yet verified</span><button className="inspect-button" onClick={inspect} disabled={inspecting || !connected}>{inspecting ? 'Reading metadata…' : 'Inspect recording'} <span aria-hidden="true">↗</span></button></div>
       </section>}
 
       {details && <RecordingDetails details={details} />}
 
       <section className="method grid grid-cols-[1.1fr_1fr_1fr_1fr] items-start gap-[30px] border-b border-line pt-[34px] pb-8 max-[1050px]:gap-4 max-[760px]:grid-cols-2 max-[760px]:gap-x-4 max-[760px]:gap-y-[25px] max-[760px]:py-7" aria-label="How recording works">
-        <div className="method-intro"><span className="micro">THE RECORDING PATH</span><p>One clock.<br />A complete record.</p></div>
+        <div className="method-intro"><span className="micro">THE RECORDING PATH</span><p>One clock.<br />An honest record.</p></div>
         <div><span className="step font-mono text-[9px] tracking-[.8px] text-muted">01 / SOURCE</span><h3>Clock-paced signal</h3><p>A deterministic signal generated against elapsed time.</p></div>
         <div><span className="step font-mono text-[9px] tracking-[.8px] text-muted">02 / CAPTURE</span><h3>Independent recorder</h3><p>A separate process writes accepted samples to disk.</p></div>
         <div><span className="step font-mono text-[9px] tracking-[.8px] text-muted">03 / STORAGE</span><h3>Indexed binary data</h3><p>Original frame positions and readable metadata.</p></div>

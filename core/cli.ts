@@ -1,4 +1,3 @@
-import type { Frame } from './contracts.ts';
 import { resolve } from 'node:path';
 import { once } from 'node:events';
 import { Acquisition } from './acquisition.ts';
@@ -6,7 +5,7 @@ import { config } from './signal.ts';
 import { inspect, parseChannelList, readFrames } from './storage.ts';
 import { verifyRecording } from './verify.ts';
 import { listRecordings } from './library.ts';
-import { Playback } from './playback.mjs';
+import { Playback } from './playback.ts';
 
 const [command, ...args] = process.argv.slice(2);
 const options: Record<string, string> = {};
@@ -91,22 +90,42 @@ try {
     for await (const frame of readFrames(directory!, query))
       if (!process.stdout.write(JSON.stringify(frame) + '\n')) await once(process.stdout, 'drain');
   } else if (command === 'playback') {
-    const playback = await new Playback(directory!, (frames: Frame[]) => {
-      if (options.output === 'jsonl')
-        for (const f of frames) process.stdout.write(JSON.stringify(f) + '\n');
-    }).init();
-    if (options.speed) playback.setSpeed(Number(options.speed));
-    if (options.start) playback.seek(Number(options.start));
-    playback.onStatus = (status: { playing: boolean }) => {
-      if (!status.playing) {
-        console.error(JSON.stringify(status));
-      }
+    for (const key of Object.keys(options))
+      if (key !== 'output') throw new Error(`Unknown playback option: ${key}`);
+    if (options.output !== undefined && options.output !== 'jsonl')
+      throw new Error('Playback output must be jsonl');
+    const playback = await Playback.open(directory!, {
+      async write(frames) {
+        if (options.output !== 'jsonl') return;
+        for (const frame of frames)
+          if (!process.stdout.write(JSON.stringify(frame) + '\n'))
+            await once(process.stdout, 'drain');
+      },
+    });
+    let finish: (state: ReturnType<typeof playback.snapshot>) => void = () => {};
+    const settled = new Promise<ReturnType<typeof playback.snapshot>>((resolve) => {
+      finish = resolve;
+    });
+    const unsubscribe = playback.subscribe((state) => {
+      if (state.status === 'ended' || state.status === 'error') finish(state);
+    });
+    const interrupt = () => {
+      const state = playback.snapshot();
+      void playback.close().finally(() => finish(state));
     };
-    process.on('SIGINT', () => playback.close());
+    process.on('SIGINT', interrupt);
+    process.on('SIGTERM', interrupt);
     playback.play();
+    const result = playback.snapshot().status === 'ended' ? playback.snapshot() : await settled;
+    process.off('SIGINT', interrupt);
+    process.off('SIGTERM', interrupt);
+    unsubscribe();
+    await playback.close();
+    console.error(JSON.stringify(result));
+    if (result.status === 'error') throw new Error(result.error || 'Playback failed');
   } else {
     console.log(
-      'SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42 --display-name "Bench run"\n    Optional: --buffer-bytes 4194304 --write-delay-ms 0\n    Temporary diagnostic: --stall-after-seconds 0.5 --stall-for-ms 1000 (off by default)\n    --seconds 0 means until stopped; settings bounds are documented in README.md.\n  list [root] --limit 10 --cursor <last-recording-id>\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> --speed 1\nSee README.md for range, playback and overload behavior.',
+      'SCOPE commands:\n  record [directory] --seconds 60 --channels 32 --sample-rate 4000 --seed 42 --display-name "Bench run"\n    Optional: --buffer-bytes 4194304 --write-delay-ms 0\n    Temporary diagnostic: --stall-after-seconds 0.5 --stall-for-ms 1000 (off by default)\n    --seconds 0 means until stopped; settings bounds are documented in README.md.\n  list [root] --limit 10 --cursor <last-recording-id>\n  inspect <directory>\n  verify <directory>\n  retrieve <directory> --start 0 --end 100 --channels 0,3\n  playback <directory> [--output jsonl]\nSee README.md for range, playback and overload behavior.',
     );
   }
 } catch (error) {

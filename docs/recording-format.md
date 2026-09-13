@@ -115,6 +115,9 @@ adjacent duplicates and never synthesize waveform values.
   remains available.
 - `npm run cli -- list [root] --limit 10 --cursor <id>` offers the same paging behavior.
   `inspect <directory>` prints the same physical-prefix and warning fields.
+- `GET /api/playback` returns the single server-owned playback snapshot. `POST /api/playback`
+  accepts exactly a recording ID and `open`, `play`, or `restart` action. Opening another recording
+  closes the prior reader; opening the same recording is idempotent.
 
 Pagination scans directory names and retains only the smallest limit+1 names after the cursor, then
 reads at most limit metadata files. Memory is O(page size); directory enumeration is O(number of
@@ -130,6 +133,15 @@ selection/page changes so stale results cannot replace the current details.
 T05 adds optional generator emission-rate/gap/deficit, transport high-water, peak RSS, and
 recorder-stall observations. These are diagnostics rather than an integrity result; see
 [counter definitions](overload.md).
+
+Native playback is available only for completed recordings with a confirmed expected extent. It
+holds one sequential bounded reader, emits the first adjacent observation for each index, counts
+later adjacent duplicates, and advances absent indices on their original timeline. Full-data sink
+batches are awaited before position is committed. Browser events contain only bounded decimated
+preview observations and metrics, never the full-rate stream. `position` is the next original frame
+to emit; active elapsed time and lag use a monotonic clock. End does not loop, and Restart returns
+to paused position zero. Pause, seek, variable speed, and selected-channel controls are added in
+T11.
 
 ## Verification report
 

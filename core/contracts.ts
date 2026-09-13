@@ -148,6 +148,40 @@ export interface Frame {
   index: number;
   values: number[];
 }
+export type PlaybackStatus = 'idle' | 'paused' | 'playing' | 'ended' | 'error';
+export interface PlaybackPreview {
+  channels: number[];
+  observations: Frame[];
+  decimation: number;
+  capacity: number;
+}
+export interface PlaybackState {
+  status: PlaybackStatus;
+  recordingId: string | null;
+  channels: number[];
+  sampleRate: number | null;
+  speed: 1;
+  position: number;
+  positionSeconds: number;
+  expectedFrames: number;
+  durationSeconds: number;
+  emittedFrames: number;
+  emittedSamples: number;
+  skippedDuplicateFrames: number;
+  activeElapsedMs: number;
+  currentLagFrames: number;
+  currentLagMs: number;
+  maxLagMs: number;
+  preview: PlaybackPreview;
+  error: string | null;
+}
+export type PlaybackCommand =
+  | { action: 'open'; recordingId: string }
+  | { action: 'play'; recordingId: string }
+  | { action: 'restart'; recordingId: string };
+export interface PlaybackSink {
+  write(frames: readonly Frame[]): void | Promise<void>;
+}
 export interface RangeQuery {
   channels?: number[];
   start?: number;

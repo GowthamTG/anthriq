@@ -1,4 +1,5 @@
 import type { RecordingInspection } from '../core/contracts';
+import { PlaybackPanel } from './playback-panel';
 import { RangeInspector } from './range-inspector';
 
 const number = (value: number | null | undefined) =>
@@ -193,6 +194,7 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
         <span className="micro">LOCAL RECORDING</span>
         <code>{details.location}</code>
       </div>
+      <PlaybackPanel details={details} />
       <RangeInspector details={details} />
     </section>
   );

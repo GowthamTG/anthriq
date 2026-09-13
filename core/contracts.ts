@@ -160,9 +160,10 @@ export interface PlaybackState {
   recordingId: string | null;
   channels: number[];
   sampleRate: number | null;
-  speed: 1;
+  speed: number;
   position: number;
   positionSeconds: number;
+  segmentStartPosition: number;
   expectedFrames: number;
   durationSeconds: number;
   emittedFrames: number;
@@ -178,7 +179,16 @@ export interface PlaybackState {
 export type PlaybackCommand =
   | { action: 'open'; recordingId: string }
   | { action: 'play'; recordingId: string }
-  | { action: 'restart'; recordingId: string };
+  | { action: 'pause'; recordingId: string }
+  | { action: 'restart'; recordingId: string }
+  | { action: 'seek'; recordingId: string; position: number }
+  | { action: 'seek'; recordingId: string; positionSeconds: number }
+  | { action: 'speed'; recordingId: string; speed: number }
+  | { action: 'channels'; recordingId: string; channels: number[] };
+export type PlaybackControlCommand = Exclude<
+  PlaybackCommand,
+  { action: 'open'; recordingId: string }
+>;
 export interface PlaybackSink {
   write(frames: readonly Frame[]): void | Promise<void>;
 }

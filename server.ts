@@ -17,6 +17,7 @@ import {
   DIAGNOSTIC_SCENARIOS,
   type DiagnosticScenario,
   type PlaybackCommand,
+  type PlaybackControlCommand,
 } from './core/contracts.ts';
 import { csvLines } from './core/export.ts';
 import { PlaybackOwner } from './core/playback.ts';
@@ -174,18 +175,45 @@ const server = createServer(async (req, res) => {
       if (!body || typeof body !== 'object' || Array.isArray(body))
         return json(res, 400, { error: 'Provide a playback action and recordingId' });
       const command = body as Partial<PlaybackCommand> & Record<string, unknown>;
-      if (
-        !['open', 'play', 'restart'].includes(String(command.action)) ||
-        typeof command.recordingId !== 'string' ||
-        Object.keys(command).some((key) => !['action', 'recordingId'].includes(key))
-      )
-        return json(res, 400, { error: 'Provide only a supported action and recordingId' });
+      const exact = (...keys: string[]) =>
+        Object.keys(command).length === keys.length &&
+        keys.every((key) => Object.hasOwn(command, key));
+      if (typeof command.recordingId !== 'string')
+        return json(res, 400, { error: 'Provide a playback action and recordingId' });
       if (!recordingId(command.recordingId))
         return json(res, 404, { error: 'Recording not found' });
-      const state =
-        command.action === 'open'
-          ? await playback.open(command.recordingId)
-          : await playback.control(command.recordingId, command.action as 'play' | 'restart');
+      let state;
+      if (command.action === 'open' && exact('action', 'recordingId'))
+        state = await playback.open(command.recordingId);
+      else if (
+        (command.action === 'play' || command.action === 'pause' || command.action === 'restart') &&
+        exact('action', 'recordingId')
+      )
+        state = await playback.control(command.recordingId, command as PlaybackControlCommand);
+      else if (
+        command.action === 'seek' &&
+        ((exact('action', 'recordingId', 'position') && typeof command.position === 'number') ||
+          (exact('action', 'recordingId', 'positionSeconds') &&
+            typeof command.positionSeconds === 'number'))
+      )
+        state = await playback.control(command.recordingId, command as PlaybackControlCommand);
+      else if (
+        command.action === 'speed' &&
+        exact('action', 'recordingId', 'speed') &&
+        typeof command.speed === 'number'
+      )
+        state = await playback.control(command.recordingId, command as PlaybackControlCommand);
+      else if (
+        command.action === 'channels' &&
+        exact('action', 'recordingId', 'channels') &&
+        Array.isArray(command.channels) &&
+        command.channels.every((channel) => typeof channel === 'number')
+      )
+        state = await playback.control(command.recordingId, command as PlaybackControlCommand);
+      else
+        return json(res, 400, {
+          error: 'Provide one supported playback action with its required value',
+        });
       return json(res, 200, state);
     }
     if (req.method === 'POST' && url.pathname === '/api/verifications') {

@@ -155,16 +155,25 @@ amplification plus frame-index bytes.
 ## Play a recording at its native rate
 
 Select a completed recording in **Recordings**. It opens paused with one global playback session;
-opening another recording closes the previous reader. **Play at 1×** emits the stored observations
-against a monotonic clock at the recorded frame rate. **Restart** explicitly resets an ended or
-failed session to paused position zero; Play at end never loops.
+opening another recording closes the previous reader. **Play** and **Resume** emit the stored
+observations against a monotonic clock. Pause acknowledges only at an accepted-output boundary, so
+resume starts at the next un-emitted original frame. **Restart** explicitly resets position and
+session output counters to paused zero while retaining the selected playback speed and channels.
 
-The detail view reports the next original frame, frame and scalar-sample counts, active elapsed
-time, current and maximum lag, and skipped adjacent duplicates. Missing indices consume their
-original timeline interval instead of compressing time. A client-only uPlot Canvas trace shows the
-bounded decimated view with original-frame and elapsed-time axes, normalized amplitude, cursor
-values, visible gap breaks, and textual channel/window context. Full batches stay in the playback
-sink and are never sent through browser state.
+The detail view provides a timeline plus exact original-frame or elapsed-time seek. Time seeks use
+`ceil(seconds × sampleRate)` and positions must be within the known inclusive range from zero to the
+exclusive final frame; seeking exactly to that final frame ends playback. Each seek locates the new
+reader start with O(log N) index probes and reads only bounded chunks afterward. Speed is
+forward-only from 0.1×–8×, with 0.25×, 0.5×, 1×, 2×, and 4× presets. Changing speed resets the
+timing segment; changing selected channels recreates the bounded reader at the same next position.
+
+The detail view reports the next original frame, frame and scalar-sample counts, selected speed,
+segment start, active segment time, current and maximum segment lag, and skipped adjacent
+duplicates. Paused time is excluded and seek/speed changes reset segment timing comparisons. Missing
+indices consume their original timeline interval instead of compressing time. A client-only uPlot
+Canvas trace shows the bounded decimated view with original-frame and elapsed-time axes, normalized
+amplitude, cursor values, visible gap breaks, and textual channel/window context. Full batches stay
+in the playback sink and are never sent through browser state.
 
 ```sh
 # Measure native playback without materializing output.
@@ -178,9 +187,8 @@ Playback accepts completed recordings with a confirmed expected extent, includin
 declare loss. It does not require an integrity PASS. Each full-data batch is awaited before position
 is committed, is capped at 256 frames and approximately 64 KiB, and each scheduler turn examines at
 most 4,096 physical observations. The browser preview retains at most 256 decimated points from the
-first four channels. uPlot is loaded only with the recording-detail chart and updates that bounded
-data through one retained chart instance. Pause, seek, speed changes, and channel selection belong
-to T11.
+first four selected channels. uPlot is loaded only with the recording-detail chart and updates that
+bounded data through one retained chart instance.
 
 ## Verify a recording
 

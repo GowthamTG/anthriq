@@ -1,4 +1,4 @@
-import type { RecordingMetadata, GeneratorMetrics, Frame, Batch, SourceDone, GeneratorMessage, RecorderMessage, RecorderCommand } from './contracts.ts';
+import type { RecordingMetadata, RecorderStall, GeneratorMetrics, Frame, Batch, SourceDone, GeneratorMessage, RecorderMessage, RecorderCommand } from './contracts.ts';
 import { fork } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { mkdir, open, stat } from 'node:fs/promises';
@@ -21,16 +21,34 @@ const generatorClosed = new Promise<number | null>(resolve => generator.once('cl
 const cancelled = new AbortController();
 let stopTimer: ReturnType<typeof setTimeout> | undefined;
 const queue: Batch[] = [];
+let pendingCreditBytes = 0, creditSending = false;
 let draining = false, finalMessage: SourceDone | undefined, finalized = false, failing = false;
 let recorded = 0, nextExpected = 0, dropped = 0, queueBytes = 0, peakQueueBytes = 0, statusPending = false, metricsBusy = false;
 let generatorMetrics: Partial<GeneratorMetrics> = {}, preview: Frame[] = [], lastPreview = 0, lastMeasurement = 0;
+let sourceStarted: number | undefined;
+let recorderStall: RecorderStall = settings.stallForMs ? 'scheduled' : 'off';
 const started = performance.now();
-const stats = (): Extract<RecorderMessage, { type: 'status' }> => ({ type: 'status', id: metadata.id, status: metadata.status, channels: settings.channels, sampleRate: settings.sampleRate, recordedFrames: recorded, totalSamples: recorded * settings.channels, droppedFrames: dropped, lostSamples: dropped * settings.channels, fileBytes: recorded * metadata.recordBytes, queueBytes, peakQueueBytes, bufferBytes: settings.bufferBytes, recorderRssBytes: process.memoryUsage().rss, elapsedSeconds: generatorMetrics.elapsedSeconds || (performance.now() - started) / 1000, generator: generatorMetrics, preview });
+const stats = (): Extract<RecorderMessage, { type: 'status' }> => ({ type: 'status', recorderStall, id: metadata.id, status: metadata.status, channels: settings.channels, sampleRate: settings.sampleRate, recordedFrames: recorded, totalSamples: recorded * settings.channels, droppedFrames: dropped, lostSamples: dropped * settings.channels, fileBytes: recorded * metadata.recordBytes, queueBytes, peakQueueBytes, bufferBytes: settings.bufferBytes, recorderRssBytes: process.memoryUsage().rss, elapsedSeconds: generatorMetrics.elapsedSeconds || (performance.now() - started) / 1000, generator: generatorMetrics, preview });
 const send = (message: RecorderMessage) => { if (process.connected) process.send!(message, err => { if (err) requestStop(); }); };
 const deliver = (message: RecorderMessage) => new Promise<void>((resolve, reject) => {
   if (!process.connected) return resolve();
   process.send!(message, error => error ? reject(error) : resolve());
 });
+
+// Coalesce control messages independently of the byte budget. Persistence has
+// already completed before credits enter this accumulator; IPC callbacks only
+// release the control-message slot, never persistence credit.
+function flushCredits() {
+  if (creditSending || !pendingCreditBytes || !generator.connected || failing) return;
+  const bytes = pendingCreditBytes;
+  pendingCreditBytes = 0;
+  creditSending = true;
+  generator.send({ type: 'credit', bytes }, error => {
+    creditSending = false;
+    if (error && !finalized) void fail(error);
+    else flushCredits();
+  });
+}
 
 async function recordGap(end: number) {
   if (end <= nextExpected) return;
@@ -44,6 +62,11 @@ async function drain() {
   try {
     while (queue.length && !failing) {
       const batch = queue.shift()!;
+      if (recorderStall === 'scheduled' && sourceStarted !== undefined && performance.now() - sourceStarted >= settings.stallAfterSeconds * 1000) {
+        recorderStall = 'active';
+        await delay(settings.stallForMs, undefined, { signal: cancelled.signal });
+        recorderStall = 'recovered';
+      }
       if (settings.writeDelayMs) await delay(settings.writeDelayMs, undefined, { signal: cancelled.signal });
       if (failing) return;
       await recordGap(batch.start);
@@ -51,7 +74,8 @@ async function drain() {
       recorded += batch.count;
       nextExpected = batch.start + batch.count;
       queueBytes -= batch.buffer.length;
-      if (generator.connected) generator.send({ type: 'credit', bytes: batch.buffer.length }, error => { if (error && !finalized) void fail(error); });
+      pendingCreditBytes += batch.buffer.length;
+      flushCredits();
       if (performance.now() - lastPreview > 100) {
         lastPreview = performance.now();
         const step = Math.max(1, Math.floor(batch.count / 80));
@@ -76,6 +100,7 @@ async function finish() {
   metadata.status = 'completed';
   metadata.stoppedAt = new Date().toISOString();
   metadata.droppedFrames = dropped;
+  metadata.recorderStall = recorderStall;
   metadata.generator = finalMessage.generator;
   metadata.peakQueueBytes = peakQueueBytes;
   metadata.recorderPeakRssBytes = process.resourceUsage().maxRSS * 1024;
@@ -146,7 +171,7 @@ generator.on('message', (message: GeneratorMessage) => {
     metadata.duration = message.expectedFrames / settings.sampleRate;
     send({ type: 'stopping', metadata });
     drain();
-  } else if (message.type === 'started') { metadata.startedAt = message.timestamp; send({ type: 'started', metadata }); }
+  } else if (message.type === 'started') { sourceStarted = performance.now(); metadata.startedAt = message.timestamp; send({ type: 'started', metadata }); }
 });
 generator.on('error', fail);
 generator.on('exit', (code, signal) => { if (!finalized && !failing) fail(new Error(`Generator exited unexpectedly (${signal || code})`)); });

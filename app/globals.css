@@ -120,6 +120,8 @@ h1>span {
 .state-recording {
   color:var(--accent);
 }
+.state-loss { color:#ffba89; }
+.state-loss:before { background:#ffba89; }
 .state-failed {
   color:#ff9c89;
 }

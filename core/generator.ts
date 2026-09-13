@@ -5,6 +5,7 @@ import { safeExtent } from './config.ts';
 const settings = config(JSON.parse(process.argv[2]));
 const width = stride(settings.channels);
 const batchFrames = Math.max(1, Math.min(Math.round(settings.sampleRate / 100), Math.floor(settings.bufferBytes / width), 4096));
+let peakOutstandingBytes = 0, lastEmissionSeconds = 0, maxEmissionGapMs = 0, measuredSeconds = 0, measuredEmitted = 0;
 let credit = settings.bufferBytes, next = 0, emitted = 0, dropped = 0;
 let start: bigint | undefined, timer: NodeJS.Timeout | undefined;
 let stopped = false, statusPending = false, maxLagMs = 0;
@@ -25,7 +26,11 @@ function tick(final = false) {
     }
     const buffer = encodeFrames(next, count, settings);
     credit -= buffer.length;
+    peakOutstandingBytes = Math.max(peakOutstandingBytes, settings.bufferBytes - credit);
     send({ type: 'batch', buffer, start: next, count });
+    const offeredAt = elapsed();
+    maxEmissionGapMs = Math.max(maxEmissionGapMs, (offeredAt - lastEmissionSeconds) * 1000);
+    lastEmissionSeconds = offeredAt;
     emitted += count;
     next += count;
   }
@@ -34,7 +39,10 @@ function tick(final = false) {
 
 function metrics() {
   const seconds = elapsed();
-  return { elapsedSeconds: seconds, scheduledFrames: next, emittedFrames: emitted, droppedFrames: dropped, outstandingBytes: settings.bufferBytes - credit, rssBytes: process.memoryUsage().rss, maxLagMs, pacingErrorFrames: next - Math.floor(Math.min(seconds, settings.seconds || Infinity) * settings.sampleRate) };
+  const emissionRateFramesPerSecond = seconds > measuredSeconds ? (emitted - measuredEmitted) / (seconds - measuredSeconds) : 0;
+  measuredSeconds = seconds; measuredEmitted = emitted;
+  maxEmissionGapMs = Math.max(maxEmissionGapMs, (seconds - lastEmissionSeconds) * 1000);
+  return { peakOutstandingBytes, peakRssBytes: process.resourceUsage().maxRSS * 1024, emissionRateFramesPerSecond, maxEmissionGapMs, emissionDeficitFrames: Math.floor(Math.min(seconds, settings.seconds || Infinity) * settings.sampleRate) - emitted, elapsedSeconds: seconds, scheduledFrames: next, emittedFrames: emitted, droppedFrames: dropped, outstandingBytes: settings.bufferBytes - credit, rssBytes: process.memoryUsage().rss, maxLagMs, pacingErrorFrames: next - Math.floor(Math.min(seconds, settings.seconds || Infinity) * settings.sampleRate) };
 }
 
 function stop() {

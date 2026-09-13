@@ -29,7 +29,7 @@ Float32 matches the deterministic rounded signal and keeps storage compact. Floa
 
 `format` is `SCOPE/1`; `waveform` is `triangle-modulated-v1`. Numeric layout fields are `sampleType: float32`, `bytesPerSample: 4`, `byteOrder: little-endian`, `recordBytes: W`, and `layout: uint64 frame index, then interleaved channel values`.
 
-Identity fields are `id` and optional `displayName`. Configuration fields are `channels`, `sampleRate`, `seed`, `bufferBytes`, `seconds`, and `writeDelayMs`; their numeric bounds are in the README. Times are `startedAt` and optional `stoppedAt`. `status` is `recording`, `completed`, or `failed`.
+Identity fields are `id` and optional `displayName`. Configuration fields are `channels`, `sampleRate`, `seed`, `bufferBytes`, `seconds`, `writeDelayMs`, `stallAfterSeconds`, and `stallForMs`; older bundles may omit the two temporary-stall fields (off). Their numeric bounds are in the README. Times are `startedAt` and optional `stoppedAt`. `status` is `recording`, `completed`, or `failed`.
 
 `expectedFrames` is the independently confirmed exclusive source extent, or null while unconfirmed. `recordedFrames` is the recorder's physical frame count; `totalSamples` is that count multiplied by channels. `droppedFrames` counts known omitted source frames. A normal finalized recording reconciles recorded plus lost frames to expected extent. `duration` is expected extent / sample rate when known; inspection returns null when extent is unconfirmed, even if an older sidecar contains a stale duration. Requested duration remains in `seconds`.
 
@@ -56,3 +56,5 @@ A prefix of complete records is structurally readable, not independently verifie
 Pagination scans directory names and retains only the smallest limit+1 names after the cursor, then reads at most limit metadata files. Memory is O(page size); directory enumeration is O(number of directories) per request. This avoids a persistent catalog while keeping memory bounded. No binary payload is loaded or scanned. Malformed bundles appear as error entries instead of silently disappearing; unrelated safe-named directories under the recording root likewise appear as unavailable bundles. Symlink directories are not listed.
 
 Paging is a live view, not a frozen snapshot. Newly added IDs before the current cursor appear after returning to First page or refreshing from the beginning. Browser requests are canceled when selection/page changes so stale results cannot replace the current details.
+
+T05 adds optional generator emission-rate/gap/deficit, transport high-water, peak RSS, and recorder-stall observations. These are diagnostics rather than an integrity result; see [counter definitions](overload.md).

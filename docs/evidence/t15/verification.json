@@ -1,0 +1,56 @@
+{
+  "format": "SCOPE-VERIFICATION/1",
+  "recordingId": "t15-sustained-2026-09-14",
+  "checkedAt": "2026-09-14T05:31:53.280Z",
+  "recordingDurationSeconds": 3600,
+  "checkedFiles": {
+    "metadata": {
+      "dev": "16777230",
+      "ino": "4408263",
+      "size": 1337,
+      "mtimeNs": "1789363908480777751"
+    },
+    "frames": {
+      "dev": "16777230",
+      "ino": "4404645",
+      "size": 1958400000,
+      "mtimeNs": "1789363908467215627"
+    }
+  },
+  "counts": {
+    "expectedFrames": 14400000,
+    "expectedSamples": 460800000,
+    "recordedFrames": 14400000,
+    "recordedSamples": 460800000
+  },
+  "discrepancies": {
+    "missing": {
+      "samples": 0,
+      "first": null
+    },
+    "duplicated": {
+      "samples": 0,
+      "first": null
+    },
+    "incorrect": {
+      "samples": 0,
+      "first": null
+    }
+  },
+  "formatErrors": {
+    "count": 0,
+    "first": null,
+    "ordering": "valid"
+  },
+  "execution": {
+    "recordsScanned": 14400000,
+    "totalRecords": 14400000,
+    "bytesScanned": 1958400000,
+    "totalBytes": 1958400000,
+    "percent": 100,
+    "elapsedMs": 4712,
+    "rssBytes": 64667648,
+    "peakRssBytes": 104316928
+  },
+  "result": "PASS"
+}

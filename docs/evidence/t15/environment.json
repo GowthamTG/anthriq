@@ -1,0 +1,22 @@
+{
+  "capturedAt": "2026-09-14T04:31:48.274Z",
+  "platform": "darwin",
+  "release": "25.6.0",
+  "architecture": "arm64",
+  "cpu": "Apple M5 Pro",
+  "logicalCpuCount": 15,
+  "totalMemoryBytes": 25769803776,
+  "storage": {
+    "path": "recordings",
+    "fileSystemTypeCode": 26,
+    "blockSizeBytes": 4096,
+    "totalBytes": 994610155520,
+    "freeBytesBefore": 855487381504
+  },
+  "node": "v24.21.0",
+  "npm": "11.19.0",
+  "workload": "quiet",
+  "uiOrHeavyWorkActive": false,
+  "workloadDeclaration": "No UI or development work was intentionally active during the benchmark.",
+  "clockMethod": "generator process.hrtime.bigint(); recorder performance.now()"
+}

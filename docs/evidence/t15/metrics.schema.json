@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T15 bounded-frequency acquisition metric",
+  "type": "object",
+  "required": [
+    "id",
+    "status",
+    "channels",
+    "sampleRate",
+    "recordedFrames",
+    "droppedFrames",
+    "queueBytes",
+    "peakQueueBytes",
+    "bufferBytes",
+    "recorderRssBytes",
+    "elapsedSeconds",
+    "generator"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "status": { "enum": ["recording", "completed"] },
+    "channels": { "type": "integer", "minimum": 1 },
+    "sampleRate": { "type": "integer", "minimum": 1 },
+    "recordedFrames": { "type": "integer", "minimum": 0 },
+    "droppedFrames": { "type": "integer", "minimum": 0 },
+    "queueBytes": { "type": "integer", "minimum": 0 },
+    "peakQueueBytes": { "type": "integer", "minimum": 0 },
+    "bufferBytes": { "type": "integer", "minimum": 1 },
+    "recorderRssBytes": { "type": "integer", "minimum": 1 },
+    "elapsedSeconds": { "type": "number", "minimum": 0 },
+    "generator": { "type": "object" },
+    "final": { "type": "boolean" }
+  }
+}

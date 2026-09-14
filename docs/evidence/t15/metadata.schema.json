@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T15 completed recording metadata",
+  "type": "object",
+  "required": [
+    "format",
+    "id",
+    "displayName",
+    "status",
+    "startedAt",
+    "stoppedAt",
+    "channels",
+    "sampleRate",
+    "bufferBytes",
+    "expectedFrames",
+    "recordedFrames",
+    "totalSamples",
+    "droppedFrames",
+    "recordBytes",
+    "generator",
+    "peakQueueBytes",
+    "recorderPeakRssBytes"
+  ],
+  "properties": {
+    "format": { "const": "SCOPE/1" },
+    "id": { "type": "string" },
+    "displayName": { "type": "string" },
+    "status": { "const": "completed" },
+    "startedAt": { "type": "string" },
+    "stoppedAt": { "type": "string" },
+    "channels": { "type": "integer", "minimum": 1 },
+    "sampleRate": { "type": "integer", "minimum": 1 },
+    "bufferBytes": { "type": "integer", "minimum": 1 },
+    "expectedFrames": { "type": "integer", "minimum": 1 },
+    "recordedFrames": { "type": "integer", "minimum": 1 },
+    "totalSamples": { "type": "integer", "minimum": 1 },
+    "droppedFrames": { "type": "integer", "minimum": 0 },
+    "recordBytes": { "type": "integer", "minimum": 1 },
+    "generator": { "type": "object" },
+    "peakQueueBytes": { "type": "integer", "minimum": 0 },
+    "recorderPeakRssBytes": { "type": "integer", "minimum": 1 }
+  }
+}

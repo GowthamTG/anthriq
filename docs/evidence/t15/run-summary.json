@@ -1,0 +1,257 @@
+{
+  "format": "SCOPE-ACQUISITION-BENCHMARK/1",
+  "createdAt": "2026-09-14T05:31:57.612Z",
+  "target": {
+    "agreedEngineeringDurationSeconds": 3600,
+    "assessmentMandatedDuration": false,
+    "achieved": true
+  },
+  "environment": {
+    "capturedAt": "2026-09-14T04:31:48.274Z",
+    "platform": "darwin",
+    "release": "25.6.0",
+    "architecture": "arm64",
+    "cpu": "Apple M5 Pro",
+    "logicalCpuCount": 15,
+    "totalMemoryBytes": 25769803776,
+    "storage": {
+      "path": "recordings",
+      "fileSystemTypeCode": 26,
+      "blockSizeBytes": 4096,
+      "totalBytes": 994610155520,
+      "freeBytesBefore": 855487381504
+    },
+    "node": "v24.21.0",
+    "npm": "11.19.0",
+    "workload": "quiet",
+    "uiOrHeavyWorkActive": false,
+    "workloadDeclaration": "No UI or development work was intentionally active during the benchmark.",
+    "clockMethod": "generator process.hrtime.bigint(); recorder performance.now()"
+  },
+  "configuration": {
+    "channels": 32,
+    "sampleRate": 4000,
+    "seconds": 3600,
+    "seed": 42,
+    "bufferBytes": 4194304,
+    "recordBytes": 136
+  },
+  "recording": {
+    "id": "t15-sustained-2026-09-14",
+    "localDirectory": "recordings/t15-sustained-2026-09-14",
+    "wallElapsedMs": 3600165.251,
+    "sourceElapsedSeconds": 3600.003370833,
+    "expectedFrames": 14400000,
+    "scheduledFrames": 14400000,
+    "emittedFrames": 14400000,
+    "persistedFrames": 14400000,
+    "lostFrames": 0,
+    "scalarSamples": 460800000,
+    "frameBytes": 1958400000,
+    "bytesPerSecond": 543999.490630157,
+    "sourcePacing": {
+      "maximumLagMs": 15.5,
+      "pacingErrorFrames": 0,
+      "emissionDeficitFrames": 0,
+      "maximumEmissionGapMs": 15.47495800014076
+    },
+    "bounds": {
+      "configuredTransportBytes": 4194304,
+      "peakOutstandingBytes": 8432,
+      "peakRecorderQueueBytes": 8432
+    },
+    "peakMemory": {
+      "generatorRssBytes": 87343104,
+      "recorderRssBytes": 96485376
+    }
+  },
+  "memoryWindows": [
+    {
+      "label": "warmup",
+      "startSeconds": 0,
+      "endSeconds": 300,
+      "measurements": 299,
+      "generatorRss": {
+        "minimumBytes": 59621376,
+        "maximumBytes": 87097344,
+        "meanBytes": 62848366
+      },
+      "recorderRss": {
+        "minimumBytes": 61816832,
+        "maximumBytes": 96256000,
+        "meanBytes": 65650250
+      },
+      "maximumQueueBytes": 3400,
+      "maximumOutstandingBytes": 3400
+    },
+    {
+      "label": "middle",
+      "startSeconds": 1650,
+      "endSeconds": 1950,
+      "measurements": 298,
+      "generatorRss": {
+        "minimumBytes": 60751872,
+        "maximumBytes": 60817408,
+        "meanBytes": 60781836
+      },
+      "recorderRss": {
+        "minimumBytes": 69615616,
+        "maximumBytes": 73809920,
+        "meanBytes": 70116812
+      },
+      "maximumQueueBytes": 3672,
+      "maximumOutstandingBytes": 3672
+    },
+    {
+      "label": "late",
+      "startSeconds": 3300,
+      "endSeconds": 3600,
+      "measurements": 299,
+      "generatorRss": {
+        "minimumBytes": 55640064,
+        "maximumBytes": 56524800,
+        "meanBytes": 56329945
+      },
+      "recorderRss": {
+        "minimumBytes": 63373312,
+        "maximumBytes": 63651840,
+        "meanBytes": 63542906
+      },
+      "maximumQueueBytes": 3400,
+      "maximumOutstandingBytes": 3264
+    }
+  ],
+  "memoryComparison": {
+    "equalWindowDurationSeconds": 300,
+    "generatorMeanRssChangeBytes": {
+      "middleMinusWarmup": -2066530,
+      "lateMinusWarmup": -6518421
+    },
+    "recorderMeanRssChangeBytes": {
+      "middleMinusWarmup": 4466562,
+      "lateMinusWarmup": -2107344
+    },
+    "interpretation": "Observed RSS is reported separately from fixed transport, recorder-queue, measurement-frequency, and verifier-chunk bounds."
+  },
+  "verification": {
+    "format": "SCOPE-VERIFICATION/1",
+    "recordingId": "t15-sustained-2026-09-14",
+    "checkedAt": "2026-09-14T05:31:53.280Z",
+    "recordingDurationSeconds": 3600,
+    "checkedFiles": {
+      "metadata": {
+        "dev": "16777230",
+        "ino": "4408263",
+        "size": 1337,
+        "mtimeNs": "1789363908480777751"
+      },
+      "frames": {
+        "dev": "16777230",
+        "ino": "4404645",
+        "size": 1958400000,
+        "mtimeNs": "1789363908467215627"
+      }
+    },
+    "counts": {
+      "expectedFrames": 14400000,
+      "expectedSamples": 460800000,
+      "recordedFrames": 14400000,
+      "recordedSamples": 460800000
+    },
+    "discrepancies": {
+      "missing": { "samples": 0, "first": null },
+      "duplicated": { "samples": 0, "first": null },
+      "incorrect": { "samples": 0, "first": null }
+    },
+    "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+    "execution": {
+      "recordsScanned": 14400000,
+      "totalRecords": 14400000,
+      "bytesScanned": 1958400000,
+      "totalBytes": 1958400000,
+      "percent": 100,
+      "elapsedMs": 4712,
+      "rssBytes": 64667648,
+      "peakRssBytes": 104316928
+    },
+    "result": "PASS"
+  },
+  "controlledOverload": {
+    "recordingId": "t15-sustained-2026-09-14-controlled-overload",
+    "expectedFrames": 16000,
+    "scheduledFrames": 16000,
+    "emittedFrames": 8025,
+    "persistedFrames": 8025,
+    "lostFrames": 7975,
+    "lossIntervals": [
+      {
+        "startFrame": 2042,
+        "endFrameExclusive": 10017,
+        "frames": 7975,
+        "samples": 255200,
+        "cause": "bounded transport exhausted"
+      }
+    ],
+    "recovered": true,
+    "verification": {
+      "format": "SCOPE-VERIFICATION/1",
+      "recordingId": "t15-sustained-2026-09-14-controlled-overload",
+      "checkedAt": "2026-09-14T05:31:57.606Z",
+      "recordingDurationSeconds": 4,
+      "checkedFiles": {
+        "metadata": {
+          "dev": "16777230",
+          "ino": "4408370",
+          "size": 1339,
+          "mtimeNs": "1789363917528377466"
+        },
+        "frames": {
+          "dev": "16777230",
+          "ino": "4408354",
+          "size": 1091400,
+          "mtimeNs": "1789363917514301032"
+        }
+      },
+      "counts": {
+        "expectedFrames": 16000,
+        "expectedSamples": 512000,
+        "recordedFrames": 8025,
+        "recordedSamples": 256800
+      },
+      "discrepancies": {
+        "missing": {
+          "samples": 255200,
+          "first": { "frame": 2042, "channel": 0 }
+        },
+        "duplicated": { "samples": 0, "first": null },
+        "incorrect": { "samples": 0, "first": null }
+      },
+      "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+      "execution": {
+        "recordsScanned": 8025,
+        "totalRecords": 8025,
+        "bytesScanned": 1091400,
+        "totalBytes": 1091400,
+        "percent": 100,
+        "elapsedMs": 10,
+        "rssBytes": 104284160,
+        "peakRssBytes": 104284160
+      },
+      "result": "FAIL"
+    }
+  },
+  "browserComparison": {
+    "evidence": "../issue-36/summary.json",
+    "physicalVerificationEvidence": "browser-verification.json",
+    "result": "PASS",
+    "cases": 6,
+    "physicallyVerifiedCases": 6
+  },
+  "constantResourceBounds": {
+    "transportBytes": 4194304,
+    "recorderQueueBytes": 4194304,
+    "measurementHistory": "streamed to metrics.jsonl at no more than one row per second",
+    "verifierChunkBytes": 65536
+  },
+  "result": "PASS"
+}

@@ -17,6 +17,9 @@
     "check:clean": "node scripts/check-clean-worktree.mjs",
     "evidence:preview": "node scripts/preview-evidence.mjs",
     "evidence:browser-stress": "node scripts/browser-isolation-evidence.mjs",
+    "benchmark:acquisition": "node scripts/acquisition-benchmark.mjs",
+    "evidence:verify-browser-comparison": "node scripts/verify-browser-comparison.mjs",
+    "evidence:validate-acquisition": "node scripts/validate-acquisition-evidence.mjs",
     "evidence:validate": "node scripts/validate-json-schema.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

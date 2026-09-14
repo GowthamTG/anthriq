@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T15 loss interval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["startFrame", "endFrameExclusive", "frames", "samples", "cause"],
+  "properties": {
+    "startFrame": { "type": "integer", "minimum": 0 },
+    "endFrameExclusive": { "type": "integer", "minimum": 1 },
+    "frames": { "type": "integer", "minimum": 1 },
+    "samples": { "type": "integer", "minimum": 1 },
+    "cause": { "const": "bounded transport exhausted" }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T15 streaming verification report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "recordingId",
+    "checkedAt",
+    "recordingDurationSeconds",
+    "checkedFiles",
+    "counts",
+    "discrepancies",
+    "formatErrors",
+    "execution",
+    "result"
+  ],
+  "properties": {
+    "format": { "const": "SCOPE-VERIFICATION/1" },
+    "recordingId": { "type": "string" },
+    "checkedAt": { "type": "string" },
+    "recordingDurationSeconds": { "type": "number", "minimum": 0 },
+    "checkedFiles": { "type": "object" },
+    "counts": { "type": "object" },
+    "discrepancies": { "type": "object" },
+    "formatErrors": { "type": "object" },
+    "execution": { "type": "object" },
+    "result": { "enum": ["PASS", "FAIL"] }
+  }
+}

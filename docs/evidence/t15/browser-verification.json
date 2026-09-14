@@ -1,0 +1,284 @@
+{
+  "format": "SCOPE-T15-BROWSER-VERIFICATION/1",
+  "createdAt": "2026-09-14T05:41:13.705Z",
+  "sourceEvidence": "docs/evidence/issue-36/summary.json",
+  "cases": [
+    {
+      "name": "no-observer",
+      "verification": {
+        "format": "SCOPE-VERIFICATION/1",
+        "recordingId": "e35561fd-d125-4e77-9210-faa3c4ae8965",
+        "checkedAt": "2026-09-14T05:41:13.314Z",
+        "recordingDurationSeconds": 5,
+        "checkedFiles": {
+          "metadata": {
+            "dev": "16777230",
+            "ino": "4379394",
+            "size": 1320,
+            "mtimeNs": "1789358450249244954"
+          },
+          "frames": {
+            "dev": "16777230",
+            "ino": "4379388",
+            "size": 2720000,
+            "mtimeNs": "1789358450241003183"
+          }
+        },
+        "counts": {
+          "expectedFrames": 20000,
+          "expectedSamples": 640000,
+          "recordedFrames": 20000,
+          "recordedSamples": 640000
+        },
+        "discrepancies": {
+          "missing": { "samples": 0, "first": null },
+          "duplicated": { "samples": 0, "first": null },
+          "incorrect": { "samples": 0, "first": null }
+        },
+        "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+        "execution": {
+          "recordsScanned": 20000,
+          "totalRecords": 20000,
+          "bytesScanned": 2720000,
+          "totalBytes": 2720000,
+          "percent": 100,
+          "elapsedMs": 15,
+          "rssBytes": 102793216,
+          "peakRssBytes": 102793216
+        },
+        "result": "PASS"
+      }
+    },
+    {
+      "name": "normal-observer",
+      "verification": {
+        "format": "SCOPE-VERIFICATION/1",
+        "recordingId": "5f12dde7-ea1c-4079-a5fb-d4b6548a04ad",
+        "checkedAt": "2026-09-14T05:41:13.389Z",
+        "recordingDurationSeconds": 5,
+        "checkedFiles": {
+          "metadata": {
+            "dev": "16777230",
+            "ino": "4379404",
+            "size": 1324,
+            "mtimeNs": "1789358455424686323"
+          },
+          "frames": {
+            "dev": "16777230",
+            "ino": "4379396",
+            "size": 2720000,
+            "mtimeNs": "1789358455415802875"
+          }
+        },
+        "counts": {
+          "expectedFrames": 20000,
+          "expectedSamples": 640000,
+          "recordedFrames": 20000,
+          "recordedSamples": 640000
+        },
+        "discrepancies": {
+          "missing": { "samples": 0, "first": null },
+          "duplicated": { "samples": 0, "first": null },
+          "incorrect": { "samples": 0, "first": null }
+        },
+        "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+        "execution": {
+          "recordsScanned": 20000,
+          "totalRecords": 20000,
+          "bytesScanned": 2720000,
+          "totalBytes": 2720000,
+          "percent": 100,
+          "elapsedMs": 17,
+          "rssBytes": 102170624,
+          "peakRssBytes": 102170624
+        },
+        "result": "PASS"
+      }
+    },
+    {
+      "name": "stalled-sse-reader",
+      "verification": {
+        "format": "SCOPE-VERIFICATION/1",
+        "recordingId": "ef42f9b2-005a-4637-abdb-de76b61bf4be",
+        "checkedAt": "2026-09-14T05:41:13.466Z",
+        "recordingDurationSeconds": 5,
+        "checkedFiles": {
+          "metadata": {
+            "dev": "16777230",
+            "ino": "4379413",
+            "size": 1316,
+            "mtimeNs": "1789358460563174305"
+          },
+          "frames": {
+            "dev": "16777230",
+            "ino": "4379406",
+            "size": 2720000,
+            "mtimeNs": "1789358460551737518"
+          }
+        },
+        "counts": {
+          "expectedFrames": 20000,
+          "expectedSamples": 640000,
+          "recordedFrames": 20000,
+          "recordedSamples": 640000
+        },
+        "discrepancies": {
+          "missing": { "samples": 0, "first": null },
+          "duplicated": { "samples": 0, "first": null },
+          "incorrect": { "samples": 0, "first": null }
+        },
+        "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+        "execution": {
+          "recordsScanned": 20000,
+          "totalRecords": 20000,
+          "bytesScanned": 2720000,
+          "totalBytes": 2720000,
+          "percent": 100,
+          "elapsedMs": 19,
+          "rssBytes": 102531072,
+          "peakRssBytes": 102531072
+        },
+        "result": "PASS"
+      }
+    },
+    {
+      "name": "reconnect-churn",
+      "verification": {
+        "format": "SCOPE-VERIFICATION/1",
+        "recordingId": "58f68774-004f-4634-aa37-147352b70865",
+        "checkedAt": "2026-09-14T05:41:13.541Z",
+        "recordingDurationSeconds": 5,
+        "checkedFiles": {
+          "metadata": {
+            "dev": "16777230",
+            "ino": "4379455",
+            "size": 1321,
+            "mtimeNs": "1789358465709647257"
+          },
+          "frames": {
+            "dev": "16777230",
+            "ino": "4379415",
+            "size": 2720000,
+            "mtimeNs": "1789358465696543495"
+          }
+        },
+        "counts": {
+          "expectedFrames": 20000,
+          "expectedSamples": 640000,
+          "recordedFrames": 20000,
+          "recordedSamples": 640000
+        },
+        "discrepancies": {
+          "missing": { "samples": 0, "first": null },
+          "duplicated": { "samples": 0, "first": null },
+          "incorrect": { "samples": 0, "first": null }
+        },
+        "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+        "execution": {
+          "recordsScanned": 20000,
+          "totalRecords": 20000,
+          "bytesScanned": 2720000,
+          "totalBytes": 2720000,
+          "percent": 100,
+          "elapsedMs": 17,
+          "rssBytes": 103596032,
+          "peakRssBytes": 103596032
+        },
+        "result": "PASS"
+      }
+    },
+    {
+      "name": "multiple-observers",
+      "verification": {
+        "format": "SCOPE-VERIFICATION/1",
+        "recordingId": "4e068fa9-9fdd-45cb-b2f0-c319aea1bda6",
+        "checkedAt": "2026-09-14T05:41:13.621Z",
+        "recordingDurationSeconds": 5,
+        "checkedFiles": {
+          "metadata": {
+            "dev": "16777230",
+            "ino": "4379463",
+            "size": 1326,
+            "mtimeNs": "1789358470891803630"
+          },
+          "frames": {
+            "dev": "16777230",
+            "ino": "4379457",
+            "size": 2720000,
+            "mtimeNs": "1789358470883141396"
+          }
+        },
+        "counts": {
+          "expectedFrames": 20000,
+          "expectedSamples": 640000,
+          "recordedFrames": 20000,
+          "recordedSamples": 640000
+        },
+        "discrepancies": {
+          "missing": { "samples": 0, "first": null },
+          "duplicated": { "samples": 0, "first": null },
+          "incorrect": { "samples": 0, "first": null }
+        },
+        "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+        "execution": {
+          "recordsScanned": 20000,
+          "totalRecords": 20000,
+          "bytesScanned": 2720000,
+          "totalBytes": 2720000,
+          "percent": 100,
+          "elapsedMs": 18,
+          "rssBytes": 102596608,
+          "peakRssBytes": 102596608
+        },
+        "result": "PASS"
+      }
+    },
+    {
+      "name": "busy-browser",
+      "verification": {
+        "format": "SCOPE-VERIFICATION/1",
+        "recordingId": "53154f84-8da3-4747-9050-4f52aa282a79",
+        "checkedAt": "2026-09-14T05:41:13.700Z",
+        "recordingDurationSeconds": 5,
+        "checkedFiles": {
+          "metadata": {
+            "dev": "16777230",
+            "ino": "4379688",
+            "size": 1312,
+            "mtimeNs": "1789358476066324581"
+          },
+          "frames": {
+            "dev": "16777230",
+            "ino": "4379465",
+            "size": 2720000,
+            "mtimeNs": "1789358476057178845"
+          }
+        },
+        "counts": {
+          "expectedFrames": 20000,
+          "expectedSamples": 640000,
+          "recordedFrames": 20000,
+          "recordedSamples": 640000
+        },
+        "discrepancies": {
+          "missing": { "samples": 0, "first": null },
+          "duplicated": { "samples": 0, "first": null },
+          "incorrect": { "samples": 0, "first": null }
+        },
+        "formatErrors": { "count": 0, "first": null, "ordering": "valid" },
+        "execution": {
+          "recordsScanned": 20000,
+          "totalRecords": 20000,
+          "bytesScanned": 2720000,
+          "totalBytes": 2720000,
+          "percent": 100,
+          "elapsedMs": 18,
+          "rssBytes": 102170624,
+          "peakRssBytes": 102170624
+        },
+        "result": "PASS"
+      }
+    }
+  ],
+  "result": "PASS"
+}

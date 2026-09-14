@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T15 physical verification of browser-comparison recordings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "createdAt", "sourceEvidence", "cases", "result"],
+  "properties": {
+    "format": { "const": "SCOPE-T15-BROWSER-VERIFICATION/1" },
+    "createdAt": { "type": "string" },
+    "sourceEvidence": { "const": "docs/evidence/issue-36/summary.json" },
+    "cases": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "verification"],
+        "properties": {
+          "name": { "type": "string" },
+          "verification": { "type": "object" }
+        }
+      }
+    },
+    "result": { "const": "PASS" }
+  }
+}

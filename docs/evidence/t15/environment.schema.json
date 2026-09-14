@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T15 benchmark environment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "capturedAt",
+    "platform",
+    "release",
+    "architecture",
+    "cpu",
+    "logicalCpuCount",
+    "totalMemoryBytes",
+    "storage",
+    "node",
+    "npm",
+    "workload",
+    "uiOrHeavyWorkActive",
+    "workloadDeclaration",
+    "clockMethod"
+  ],
+  "properties": {
+    "capturedAt": { "type": "string" },
+    "platform": { "type": "string" },
+    "release": { "type": "string" },
+    "architecture": { "type": "string" },
+    "cpu": { "type": "string" },
+    "logicalCpuCount": { "type": "integer", "minimum": 1 },
+    "totalMemoryBytes": { "type": "integer", "minimum": 1 },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "fileSystemTypeCode", "blockSizeBytes", "totalBytes", "freeBytesBefore"],
+      "properties": {
+        "path": { "type": "string" },
+        "fileSystemTypeCode": { "type": "integer" },
+        "blockSizeBytes": { "type": "integer", "minimum": 1 },
+        "totalBytes": { "type": "integer", "minimum": 1 },
+        "freeBytesBefore": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "node": { "type": "string" },
+    "npm": { "type": "string" },
+    "workload": { "enum": ["quiet", "ui", "development"] },
+    "uiOrHeavyWorkActive": { "type": "boolean" },
+    "workloadDeclaration": { "type": "string" },
+    "clockMethod": { "type": "string" }
+  }
+}

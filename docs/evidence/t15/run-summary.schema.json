@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GowthamTG/anthriq/docs/evidence/t15/run-summary.schema.json",
+  "title": "SCOPE sustained acquisition benchmark",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "createdAt",
+    "target",
+    "environment",
+    "configuration",
+    "recording",
+    "memoryWindows",
+    "memoryComparison",
+    "verification",
+    "controlledOverload",
+    "browserComparison",
+    "constantResourceBounds",
+    "result"
+  ],
+  "properties": {
+    "format": { "const": "SCOPE-ACQUISITION-BENCHMARK/1" },
+    "createdAt": { "type": "string" },
+    "target": {
+      "type": "object",
+      "required": ["agreedEngineeringDurationSeconds", "assessmentMandatedDuration", "achieved"],
+      "properties": {
+        "agreedEngineeringDurationSeconds": { "const": 3600 },
+        "assessmentMandatedDuration": { "const": false },
+        "achieved": { "type": "boolean" }
+      }
+    },
+    "environment": { "type": "object" },
+    "configuration": {
+      "type": "object",
+      "required": ["channels", "sampleRate", "seconds", "seed", "bufferBytes", "recordBytes"]
+    },
+    "recording": {
+      "type": "object",
+      "required": [
+        "id",
+        "localDirectory",
+        "wallElapsedMs",
+        "sourceElapsedSeconds",
+        "expectedFrames",
+        "scheduledFrames",
+        "emittedFrames",
+        "persistedFrames",
+        "lostFrames",
+        "scalarSamples",
+        "frameBytes",
+        "sourcePacing",
+        "bounds",
+        "peakMemory"
+      ]
+    },
+    "memoryWindows": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "startSeconds",
+          "endSeconds",
+          "measurements",
+          "generatorRss",
+          "recorderRss",
+          "maximumQueueBytes",
+          "maximumOutstandingBytes"
+        ]
+      }
+    },
+    "memoryComparison": { "type": "object" },
+    "verification": { "type": "object" },
+    "controlledOverload": { "type": ["object", "null"] },
+    "browserComparison": { "type": "object" },
+    "constantResourceBounds": { "type": "object" },
+    "result": { "const": "PASS" }
+  }
+}

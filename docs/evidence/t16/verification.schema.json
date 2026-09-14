@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "format",
+    "recordingId",
+    "checkedAt",
+    "checkedFiles",
+    "counts",
+    "discrepancies",
+    "formatErrors",
+    "execution",
+    "result"
+  ],
+  "properties": {
+    "format": { "const": "SCOPE-VERIFICATION/1" },
+    "recordingId": { "type": "string" },
+    "checkedAt": { "type": "string" },
+    "checkedFiles": { "type": "object", "required": ["metadata", "frames"] },
+    "counts": { "type": "object", "required": ["expectedFrames", "recordedFrames"] },
+    "discrepancies": { "type": "object", "required": ["missing", "duplicated", "incorrect"] },
+    "formatErrors": { "type": "object", "required": ["count", "first", "ordering"] },
+    "execution": {
+      "type": "object",
+      "required": ["recordsScanned", "bytesScanned", "elapsedMs", "rssBytes", "peakRssBytes"]
+    },
+    "result": { "const": "PASS" }
+  }
+}

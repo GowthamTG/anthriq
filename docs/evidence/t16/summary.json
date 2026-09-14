@@ -1,0 +1,1809 @@
+{
+  "format": "SCOPE-LONG-RECORDING-EVIDENCE/1",
+  "createdAt": "2026-09-14T06:32:00.845Z",
+  "result": "PASS",
+  "workload": {
+    "declaration": "quiet",
+    "quietWindow": true,
+    "statement": "No UI or development work was intentionally active during final measurements."
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "architecture": "arm64",
+    "cpu": "Apple M5 Pro",
+    "logicalCpuCount": 15,
+    "totalMemoryBytes": 25769803776,
+    "node": "v24.21.0"
+  },
+  "t15Reference": {
+    "evidence": "../t15/run-summary.json",
+    "verificationEvidence": "../t15/verification.json",
+    "recordedEnvironment": {
+      "capturedAt": "2026-09-14T04:31:48.274Z",
+      "platform": "darwin",
+      "release": "25.6.0",
+      "architecture": "arm64",
+      "cpu": "Apple M5 Pro",
+      "logicalCpuCount": 15,
+      "totalMemoryBytes": 25769803776,
+      "storage": {
+        "path": "recordings",
+        "fileSystemTypeCode": 26,
+        "blockSizeBytes": 4096,
+        "totalBytes": 994610155520,
+        "freeBytesBefore": 855487381504
+      },
+      "node": "v24.21.0",
+      "npm": "11.19.0",
+      "workload": "quiet",
+      "uiOrHeavyWorkActive": false,
+      "workloadDeclaration": "No UI or development work was intentionally active during the benchmark.",
+      "clockMethod": "generator process.hrtime.bigint(); recorder performance.now()"
+    },
+    "identityMatched": true,
+    "platformContext": {
+      "matched": true,
+      "fields": {
+        "platform": {
+          "recorded": "darwin",
+          "current": "darwin",
+          "matched": true
+        },
+        "release": {
+          "recorded": "25.6.0",
+          "current": "25.6.0",
+          "matched": true
+        },
+        "architecture": {
+          "recorded": "arm64",
+          "current": "arm64",
+          "matched": true
+        },
+        "cpu": {
+          "recorded": "Apple M5 Pro",
+          "current": "Apple M5 Pro",
+          "matched": true
+        },
+        "logicalCpuCount": { "recorded": 15, "current": 15, "matched": true },
+        "totalMemoryBytes": {
+          "recorded": 25769803776,
+          "current": 25769803776,
+          "matched": true
+        },
+        "node": {
+          "recorded": "v24.21.0",
+          "current": "v24.21.0",
+          "matched": true
+        }
+      }
+    }
+  },
+  "recording": {
+    "id": "t15-sustained-2026-09-14",
+    "localDirectory": "recordings/t15-sustained-2026-09-14",
+    "absolutePathRequired": true,
+    "channels": 32,
+    "sampleRateFramesPerSecond": 4000,
+    "seed": 42,
+    "expectedFrames": 14400000,
+    "durationSeconds": 3600,
+    "recordBytes": 136,
+    "frameFileBytes": 1958400000,
+    "status": "completed",
+    "checkedFiles": {
+      "metadata": {
+        "dev": "16777230",
+        "ino": "4408263",
+        "size": 1337,
+        "mtimeNs": "1789363908480777751"
+      },
+      "frames": {
+        "dev": "16777230",
+        "ino": "4404645",
+        "size": 1958400000,
+        "mtimeNs": "1789363908467215627"
+      }
+    }
+  },
+  "workloadConfiguration": {
+    "profile": "full",
+    "selectedChannels": [31, 2, 17, 0],
+    "retrievalRepetitions": { "warmup": 1, "measured": 5 },
+    "exportConsumerDelayMilliseconds": 5,
+    "exportDelayEveryDataRows": 2048,
+    "playbackSourceTimelineSeconds": 12,
+    "playbackEngineeringToleranceFraction": 0.1,
+    "slowSinkDelayMillisecondsPerAcceptedBatch": 25,
+    "transitionPausedMilliseconds": 2000
+  },
+  "units": {
+    "bytes": "bytes",
+    "elapsed": "milliseconds",
+    "rate": "frames or samples per second as named",
+    "lag": "frames or milliseconds as named",
+    "positions": "zero-based frame indices; range ends are exclusive"
+  },
+  "bounds": {
+    "rangeReadBytes": 65536,
+    "playback": {
+      "maximumBatchFrames": 256,
+      "maximumBatchBytes": 65536,
+      "maximumCatchUpRecordsPerTick": 4096,
+      "previewCapacity": 256
+    },
+    "exportRetention": "SHA-256 and counters only; CSV bytes are not retained",
+    "measurementHistory": "streamed to measurements.jsonl"
+  },
+  "expectedAmplification": {
+    "value": 8.5,
+    "formula": "recordBytes / (selectedChannelCount * float32Bytes)",
+    "excludes": "extent and lower-bound index probe bytes"
+  },
+  "retrieval": [
+    {
+      "kind": "window",
+      "label": "window-beginning",
+      "requestedWindow": { "start": 0, "end": 4000 },
+      "channels": [31, 2, 17, 0],
+      "warmup": {
+        "elapsedMs": 10.435749999999999,
+        "rssBeforeBytes": 94142464,
+        "rssAfterBytes": 103301120,
+        "processPeakRssBytes": 103301120,
+        "metrics": {
+          "extentProbeReads": 1,
+          "extentProbeBytes": 8,
+          "lowerBoundProbeReads": 48,
+          "lowerBoundProbeBytes": 384,
+          "dataReadCalls": 9,
+          "dataBytesRead": 544000,
+          "maximumReadBytes": 65416,
+          "recordsDecoded": 4000,
+          "selectedSamplesReturned": 16000
+        },
+        "identity": { "firstIndex": 0, "nextIndex": 4000, "frames": 4000 },
+        "digestSha256": "07cd403420b51fe7bede2991ac6be3572fc479a0ccbc4b6085df995703b22ee5"
+      },
+      "measured": [
+        {
+          "elapsedMs": 4.388708000000001,
+          "rssBeforeBytes": 103333888,
+          "rssAfterBytes": 103432192,
+          "processPeakRssBytes": 103432192,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 4000, "frames": 4000 },
+          "digestSha256": "07cd403420b51fe7bede2991ac6be3572fc479a0ccbc4b6085df995703b22ee5"
+        },
+        {
+          "elapsedMs": 4.088333999999996,
+          "rssBeforeBytes": 103432192,
+          "rssAfterBytes": 103546880,
+          "processPeakRssBytes": 103546880,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 4000, "frames": 4000 },
+          "digestSha256": "07cd403420b51fe7bede2991ac6be3572fc479a0ccbc4b6085df995703b22ee5"
+        },
+        {
+          "elapsedMs": 5.78425,
+          "rssBeforeBytes": 103546880,
+          "rssAfterBytes": 104120320,
+          "processPeakRssBytes": 104136704,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 4000, "frames": 4000 },
+          "digestSha256": "07cd403420b51fe7bede2991ac6be3572fc479a0ccbc4b6085df995703b22ee5"
+        },
+        {
+          "elapsedMs": 3.3631659999999926,
+          "rssBeforeBytes": 104136704,
+          "rssAfterBytes": 104153088,
+          "processPeakRssBytes": 104153088,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 4000, "frames": 4000 },
+          "digestSha256": "07cd403420b51fe7bede2991ac6be3572fc479a0ccbc4b6085df995703b22ee5"
+        },
+        {
+          "elapsedMs": 3.2820410000000066,
+          "rssBeforeBytes": 104153088,
+          "rssAfterBytes": 104153088,
+          "processPeakRssBytes": 104153088,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 4000, "frames": 4000 },
+          "digestSha256": "07cd403420b51fe7bede2991ac6be3572fc479a0ccbc4b6085df995703b22ee5"
+        }
+      ],
+      "measuredStatistics": {
+        "elapsedMs": {
+          "first": 4.388708000000001,
+          "median": 4.088333999999996,
+          "p95": 5.78425,
+          "minimum": 3.2820410000000066,
+          "maximum": 5.78425
+        },
+        "rssBeforeBytes": {
+          "first": 103333888,
+          "median": 103546880,
+          "p95": 104153088,
+          "minimum": 103333888,
+          "maximum": 104153088
+        },
+        "rssAfterBytes": {
+          "first": 103432192,
+          "median": 104120320,
+          "p95": 104153088,
+          "minimum": 103432192,
+          "maximum": 104153088
+        },
+        "processPeakRssBytes": {
+          "first": 103432192,
+          "median": 104136704,
+          "p95": 104153088,
+          "minimum": 103432192,
+          "maximum": 104153088
+        },
+        "metrics": {
+          "extentProbeReads": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "extentProbeBytes": {
+            "first": 8,
+            "median": 8,
+            "p95": 8,
+            "minimum": 8,
+            "maximum": 8
+          },
+          "lowerBoundProbeReads": {
+            "first": 48,
+            "median": 48,
+            "p95": 48,
+            "minimum": 48,
+            "maximum": 48
+          },
+          "lowerBoundProbeBytes": {
+            "first": 384,
+            "median": 384,
+            "p95": 384,
+            "minimum": 384,
+            "maximum": 384
+          },
+          "dataReadCalls": {
+            "first": 9,
+            "median": 9,
+            "p95": 9,
+            "minimum": 9,
+            "maximum": 9
+          },
+          "dataBytesRead": {
+            "first": 544000,
+            "median": 544000,
+            "p95": 544000,
+            "minimum": 544000,
+            "maximum": 544000
+          },
+          "maximumReadBytes": {
+            "first": 65416,
+            "median": 65416,
+            "p95": 65416,
+            "minimum": 65416,
+            "maximum": 65416
+          },
+          "recordsDecoded": {
+            "first": 4000,
+            "median": 4000,
+            "p95": 4000,
+            "minimum": 4000,
+            "maximum": 4000
+          },
+          "selectedSamplesReturned": {
+            "first": 16000,
+            "median": 16000,
+            "p95": 16000,
+            "minimum": 16000,
+            "maximum": 16000
+          }
+        }
+      },
+      "selectedOutputBytes": 96000,
+      "frameMajorChannelReadAmplification": 8.5
+    },
+    {
+      "kind": "window",
+      "label": "window-middle",
+      "requestedWindow": { "start": 7200000, "end": 7204000 },
+      "channels": [31, 2, 17, 0],
+      "warmup": {
+        "elapsedMs": 11.113875,
+        "rssBeforeBytes": 94486528,
+        "rssAfterBytes": 103727104,
+        "processPeakRssBytes": 103841792,
+        "metrics": {
+          "extentProbeReads": 1,
+          "extentProbeBytes": 8,
+          "lowerBoundProbeReads": 47,
+          "lowerBoundProbeBytes": 376,
+          "dataReadCalls": 9,
+          "dataBytesRead": 544000,
+          "maximumReadBytes": 65416,
+          "recordsDecoded": 4000,
+          "selectedSamplesReturned": 16000
+        },
+        "identity": {
+          "firstIndex": 7200000,
+          "nextIndex": 7204000,
+          "frames": 4000
+        },
+        "digestSha256": "e89834be05f1b163122923f05e85dde5e895adff7bd2f2c2307694c2ec74a59c"
+      },
+      "measured": [
+        {
+          "elapsedMs": 4.366374999999998,
+          "rssBeforeBytes": 103776256,
+          "rssAfterBytes": 103923712,
+          "processPeakRssBytes": 103923712,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7204000,
+            "frames": 4000
+          },
+          "digestSha256": "e89834be05f1b163122923f05e85dde5e895adff7bd2f2c2307694c2ec74a59c"
+        },
+        {
+          "elapsedMs": 6.649791999999991,
+          "rssBeforeBytes": 103923712,
+          "rssAfterBytes": 104415232,
+          "processPeakRssBytes": 104415232,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7204000,
+            "frames": 4000
+          },
+          "digestSha256": "e89834be05f1b163122923f05e85dde5e895adff7bd2f2c2307694c2ec74a59c"
+        },
+        {
+          "elapsedMs": 3.6624169999999907,
+          "rssBeforeBytes": 104415232,
+          "rssAfterBytes": 104513536,
+          "processPeakRssBytes": 104513536,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7204000,
+            "frames": 4000
+          },
+          "digestSha256": "e89834be05f1b163122923f05e85dde5e895adff7bd2f2c2307694c2ec74a59c"
+        },
+        {
+          "elapsedMs": 3.3217089999999985,
+          "rssBeforeBytes": 104513536,
+          "rssAfterBytes": 104562688,
+          "processPeakRssBytes": 104562688,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7204000,
+            "frames": 4000
+          },
+          "digestSha256": "e89834be05f1b163122923f05e85dde5e895adff7bd2f2c2307694c2ec74a59c"
+        },
+        {
+          "elapsedMs": 3.231958000000006,
+          "rssBeforeBytes": 104562688,
+          "rssAfterBytes": 104562688,
+          "processPeakRssBytes": 104562688,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7204000,
+            "frames": 4000
+          },
+          "digestSha256": "e89834be05f1b163122923f05e85dde5e895adff7bd2f2c2307694c2ec74a59c"
+        }
+      ],
+      "measuredStatistics": {
+        "elapsedMs": {
+          "first": 4.366374999999998,
+          "median": 3.6624169999999907,
+          "p95": 6.649791999999991,
+          "minimum": 3.231958000000006,
+          "maximum": 6.649791999999991
+        },
+        "rssBeforeBytes": {
+          "first": 103776256,
+          "median": 104415232,
+          "p95": 104562688,
+          "minimum": 103776256,
+          "maximum": 104562688
+        },
+        "rssAfterBytes": {
+          "first": 103923712,
+          "median": 104513536,
+          "p95": 104562688,
+          "minimum": 103923712,
+          "maximum": 104562688
+        },
+        "processPeakRssBytes": {
+          "first": 103923712,
+          "median": 104513536,
+          "p95": 104562688,
+          "minimum": 103923712,
+          "maximum": 104562688
+        },
+        "metrics": {
+          "extentProbeReads": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "extentProbeBytes": {
+            "first": 8,
+            "median": 8,
+            "p95": 8,
+            "minimum": 8,
+            "maximum": 8
+          },
+          "lowerBoundProbeReads": {
+            "first": 47,
+            "median": 47,
+            "p95": 47,
+            "minimum": 47,
+            "maximum": 47
+          },
+          "lowerBoundProbeBytes": {
+            "first": 376,
+            "median": 376,
+            "p95": 376,
+            "minimum": 376,
+            "maximum": 376
+          },
+          "dataReadCalls": {
+            "first": 9,
+            "median": 9,
+            "p95": 9,
+            "minimum": 9,
+            "maximum": 9
+          },
+          "dataBytesRead": {
+            "first": 544000,
+            "median": 544000,
+            "p95": 544000,
+            "minimum": 544000,
+            "maximum": 544000
+          },
+          "maximumReadBytes": {
+            "first": 65416,
+            "median": 65416,
+            "p95": 65416,
+            "minimum": 65416,
+            "maximum": 65416
+          },
+          "recordsDecoded": {
+            "first": 4000,
+            "median": 4000,
+            "p95": 4000,
+            "minimum": 4000,
+            "maximum": 4000
+          },
+          "selectedSamplesReturned": {
+            "first": 16000,
+            "median": 16000,
+            "p95": 16000,
+            "minimum": 16000,
+            "maximum": 16000
+          }
+        }
+      },
+      "selectedOutputBytes": 96000,
+      "frameMajorChannelReadAmplification": 8.5
+    },
+    {
+      "kind": "window",
+      "label": "window-end",
+      "requestedWindow": { "start": 14396000, "end": 14400000 },
+      "channels": [31, 2, 17, 0],
+      "warmup": {
+        "elapsedMs": 12.531374999999997,
+        "rssBeforeBytes": 94601216,
+        "rssAfterBytes": 103251968,
+        "processPeakRssBytes": 103301120,
+        "metrics": {
+          "extentProbeReads": 1,
+          "extentProbeBytes": 8,
+          "lowerBoundProbeReads": 47,
+          "lowerBoundProbeBytes": 376,
+          "dataReadCalls": 9,
+          "dataBytesRead": 544000,
+          "maximumReadBytes": 65416,
+          "recordsDecoded": 4000,
+          "selectedSamplesReturned": 16000
+        },
+        "identity": {
+          "firstIndex": 14396000,
+          "nextIndex": 14400000,
+          "frames": 4000
+        },
+        "digestSha256": "df19da49964bcbae3b64be9f3a4d0d5c31fccc9a248253de66eb5e0659d911b8"
+      },
+      "measured": [
+        {
+          "elapsedMs": 4.347957999999998,
+          "rssBeforeBytes": 103301120,
+          "rssAfterBytes": 103448576,
+          "processPeakRssBytes": 103448576,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 14396000,
+            "nextIndex": 14400000,
+            "frames": 4000
+          },
+          "digestSha256": "df19da49964bcbae3b64be9f3a4d0d5c31fccc9a248253de66eb5e0659d911b8"
+        },
+        {
+          "elapsedMs": 4.302250000000001,
+          "rssBeforeBytes": 103448576,
+          "rssAfterBytes": 103579648,
+          "processPeakRssBytes": 103579648,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 14396000,
+            "nextIndex": 14400000,
+            "frames": 4000
+          },
+          "digestSha256": "df19da49964bcbae3b64be9f3a4d0d5c31fccc9a248253de66eb5e0659d911b8"
+        },
+        {
+          "elapsedMs": 5.2236250000000055,
+          "rssBeforeBytes": 103579648,
+          "rssAfterBytes": 104120320,
+          "processPeakRssBytes": 104120320,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 14396000,
+            "nextIndex": 14400000,
+            "frames": 4000
+          },
+          "digestSha256": "df19da49964bcbae3b64be9f3a4d0d5c31fccc9a248253de66eb5e0659d911b8"
+        },
+        {
+          "elapsedMs": 4.424999999999997,
+          "rssBeforeBytes": 104120320,
+          "rssAfterBytes": 104136704,
+          "processPeakRssBytes": 104136704,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 14396000,
+            "nextIndex": 14400000,
+            "frames": 4000
+          },
+          "digestSha256": "df19da49964bcbae3b64be9f3a4d0d5c31fccc9a248253de66eb5e0659d911b8"
+        },
+        {
+          "elapsedMs": 3.4022080000000017,
+          "rssBeforeBytes": 104136704,
+          "rssAfterBytes": 104153088,
+          "processPeakRssBytes": 104153088,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 9,
+            "dataBytesRead": 544000,
+            "maximumReadBytes": 65416,
+            "recordsDecoded": 4000,
+            "selectedSamplesReturned": 16000
+          },
+          "identity": {
+            "firstIndex": 14396000,
+            "nextIndex": 14400000,
+            "frames": 4000
+          },
+          "digestSha256": "df19da49964bcbae3b64be9f3a4d0d5c31fccc9a248253de66eb5e0659d911b8"
+        }
+      ],
+      "measuredStatistics": {
+        "elapsedMs": {
+          "first": 4.347957999999998,
+          "median": 4.347957999999998,
+          "p95": 5.2236250000000055,
+          "minimum": 3.4022080000000017,
+          "maximum": 5.2236250000000055
+        },
+        "rssBeforeBytes": {
+          "first": 103301120,
+          "median": 103579648,
+          "p95": 104136704,
+          "minimum": 103301120,
+          "maximum": 104136704
+        },
+        "rssAfterBytes": {
+          "first": 103448576,
+          "median": 104120320,
+          "p95": 104153088,
+          "minimum": 103448576,
+          "maximum": 104153088
+        },
+        "processPeakRssBytes": {
+          "first": 103448576,
+          "median": 104120320,
+          "p95": 104153088,
+          "minimum": 103448576,
+          "maximum": 104153088
+        },
+        "metrics": {
+          "extentProbeReads": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "extentProbeBytes": {
+            "first": 8,
+            "median": 8,
+            "p95": 8,
+            "minimum": 8,
+            "maximum": 8
+          },
+          "lowerBoundProbeReads": {
+            "first": 47,
+            "median": 47,
+            "p95": 47,
+            "minimum": 47,
+            "maximum": 47
+          },
+          "lowerBoundProbeBytes": {
+            "first": 376,
+            "median": 376,
+            "p95": 376,
+            "minimum": 376,
+            "maximum": 376
+          },
+          "dataReadCalls": {
+            "first": 9,
+            "median": 9,
+            "p95": 9,
+            "minimum": 9,
+            "maximum": 9
+          },
+          "dataBytesRead": {
+            "first": 544000,
+            "median": 544000,
+            "p95": 544000,
+            "minimum": 544000,
+            "maximum": 544000
+          },
+          "maximumReadBytes": {
+            "first": 65416,
+            "median": 65416,
+            "p95": 65416,
+            "minimum": 65416,
+            "maximum": 65416
+          },
+          "recordsDecoded": {
+            "first": 4000,
+            "median": 4000,
+            "p95": 4000,
+            "minimum": 4000,
+            "maximum": 4000
+          },
+          "selectedSamplesReturned": {
+            "first": 16000,
+            "median": 16000,
+            "p95": 16000,
+            "minimum": 16000,
+            "maximum": 16000
+          }
+        }
+      },
+      "selectedOutputBytes": 96000,
+      "frameMajorChannelReadAmplification": 8.5
+    },
+    {
+      "kind": "seek",
+      "label": "seek-beginning",
+      "requestedWindow": { "start": 0, "end": 1 },
+      "channels": [31, 2, 17, 0],
+      "warmup": {
+        "elapsedMs": 1.6802499999999938,
+        "rssBeforeBytes": 94552064,
+        "rssAfterBytes": 95174656,
+        "processPeakRssBytes": 95174656,
+        "metrics": {
+          "extentProbeReads": 1,
+          "extentProbeBytes": 8,
+          "lowerBoundProbeReads": 48,
+          "lowerBoundProbeBytes": 384,
+          "dataReadCalls": 1,
+          "dataBytesRead": 136,
+          "maximumReadBytes": 136,
+          "recordsDecoded": 1,
+          "selectedSamplesReturned": 4
+        },
+        "identity": { "firstIndex": 0, "nextIndex": 1, "frames": 1 },
+        "digestSha256": "11079e1b9fe1d5867737bdc7ae989d7bac51b02a054621c27e1ef3a0a8e698bb"
+      },
+      "measured": [
+        {
+          "elapsedMs": 0.7535000000000025,
+          "rssBeforeBytes": 95240192,
+          "rssAfterBytes": 95272960,
+          "processPeakRssBytes": 95272960,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 1, "frames": 1 },
+          "digestSha256": "11079e1b9fe1d5867737bdc7ae989d7bac51b02a054621c27e1ef3a0a8e698bb"
+        },
+        {
+          "elapsedMs": 0.6589999999999989,
+          "rssBeforeBytes": 95272960,
+          "rssAfterBytes": 95371264,
+          "processPeakRssBytes": 95371264,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 1, "frames": 1 },
+          "digestSha256": "11079e1b9fe1d5867737bdc7ae989d7bac51b02a054621c27e1ef3a0a8e698bb"
+        },
+        {
+          "elapsedMs": 0.6535000000000011,
+          "rssBeforeBytes": 95387648,
+          "rssAfterBytes": 95617024,
+          "processPeakRssBytes": 95617024,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 1, "frames": 1 },
+          "digestSha256": "11079e1b9fe1d5867737bdc7ae989d7bac51b02a054621c27e1ef3a0a8e698bb"
+        },
+        {
+          "elapsedMs": 0.9035000000000011,
+          "rssBeforeBytes": 95633408,
+          "rssAfterBytes": 96190464,
+          "processPeakRssBytes": 96190464,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 1, "frames": 1 },
+          "digestSha256": "11079e1b9fe1d5867737bdc7ae989d7bac51b02a054621c27e1ef3a0a8e698bb"
+        },
+        {
+          "elapsedMs": 0.9254159999999985,
+          "rssBeforeBytes": 96190464,
+          "rssAfterBytes": 97206272,
+          "processPeakRssBytes": 97206272,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 48,
+            "lowerBoundProbeBytes": 384,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": { "firstIndex": 0, "nextIndex": 1, "frames": 1 },
+          "digestSha256": "11079e1b9fe1d5867737bdc7ae989d7bac51b02a054621c27e1ef3a0a8e698bb"
+        }
+      ],
+      "measuredStatistics": {
+        "elapsedMs": {
+          "first": 0.7535000000000025,
+          "median": 0.7535000000000025,
+          "p95": 0.9254159999999985,
+          "minimum": 0.6535000000000011,
+          "maximum": 0.9254159999999985
+        },
+        "rssBeforeBytes": {
+          "first": 95240192,
+          "median": 95387648,
+          "p95": 96190464,
+          "minimum": 95240192,
+          "maximum": 96190464
+        },
+        "rssAfterBytes": {
+          "first": 95272960,
+          "median": 95617024,
+          "p95": 97206272,
+          "minimum": 95272960,
+          "maximum": 97206272
+        },
+        "processPeakRssBytes": {
+          "first": 95272960,
+          "median": 95617024,
+          "p95": 97206272,
+          "minimum": 95272960,
+          "maximum": 97206272
+        },
+        "metrics": {
+          "extentProbeReads": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "extentProbeBytes": {
+            "first": 8,
+            "median": 8,
+            "p95": 8,
+            "minimum": 8,
+            "maximum": 8
+          },
+          "lowerBoundProbeReads": {
+            "first": 48,
+            "median": 48,
+            "p95": 48,
+            "minimum": 48,
+            "maximum": 48
+          },
+          "lowerBoundProbeBytes": {
+            "first": 384,
+            "median": 384,
+            "p95": 384,
+            "minimum": 384,
+            "maximum": 384
+          },
+          "dataReadCalls": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "dataBytesRead": {
+            "first": 136,
+            "median": 136,
+            "p95": 136,
+            "minimum": 136,
+            "maximum": 136
+          },
+          "maximumReadBytes": {
+            "first": 136,
+            "median": 136,
+            "p95": 136,
+            "minimum": 136,
+            "maximum": 136
+          },
+          "recordsDecoded": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "selectedSamplesReturned": {
+            "first": 4,
+            "median": 4,
+            "p95": 4,
+            "minimum": 4,
+            "maximum": 4
+          }
+        }
+      },
+      "selectedOutputBytes": 24,
+      "frameMajorChannelReadAmplification": 8.5
+    },
+    {
+      "kind": "seek",
+      "label": "seek-middle",
+      "requestedWindow": { "start": 7200000, "end": 7200001 },
+      "channels": [31, 2, 17, 0],
+      "warmup": {
+        "elapsedMs": 1.5457079999999976,
+        "rssBeforeBytes": 96452608,
+        "rssAfterBytes": 97026048,
+        "processPeakRssBytes": 97026048,
+        "metrics": {
+          "extentProbeReads": 1,
+          "extentProbeBytes": 8,
+          "lowerBoundProbeReads": 47,
+          "lowerBoundProbeBytes": 376,
+          "dataReadCalls": 1,
+          "dataBytesRead": 136,
+          "maximumReadBytes": 136,
+          "recordsDecoded": 1,
+          "selectedSamplesReturned": 4
+        },
+        "identity": {
+          "firstIndex": 7200000,
+          "nextIndex": 7200001,
+          "frames": 1
+        },
+        "digestSha256": "c1ad644b595eb7fc666918615387c83960ceb474be035680dcaae53eac72ca93"
+      },
+      "measured": [
+        {
+          "elapsedMs": 1.435291999999997,
+          "rssBeforeBytes": 97107968,
+          "rssAfterBytes": 97140736,
+          "processPeakRssBytes": 97140736,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7200001,
+            "frames": 1
+          },
+          "digestSha256": "c1ad644b595eb7fc666918615387c83960ceb474be035680dcaae53eac72ca93"
+        },
+        {
+          "elapsedMs": 0.7750830000000022,
+          "rssBeforeBytes": 97140736,
+          "rssAfterBytes": 97189888,
+          "processPeakRssBytes": 97189888,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7200001,
+            "frames": 1
+          },
+          "digestSha256": "c1ad644b595eb7fc666918615387c83960ceb474be035680dcaae53eac72ca93"
+        },
+        {
+          "elapsedMs": 0.8477499999999978,
+          "rssBeforeBytes": 97189888,
+          "rssAfterBytes": 97828864,
+          "processPeakRssBytes": 97828864,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7200001,
+            "frames": 1
+          },
+          "digestSha256": "c1ad644b595eb7fc666918615387c83960ceb474be035680dcaae53eac72ca93"
+        },
+        {
+          "elapsedMs": 0.6913750000000007,
+          "rssBeforeBytes": 97828864,
+          "rssAfterBytes": 98369536,
+          "processPeakRssBytes": 98385920,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7200001,
+            "frames": 1
+          },
+          "digestSha256": "c1ad644b595eb7fc666918615387c83960ceb474be035680dcaae53eac72ca93"
+        },
+        {
+          "elapsedMs": 0.874291999999997,
+          "rssBeforeBytes": 98385920,
+          "rssAfterBytes": 99434496,
+          "processPeakRssBytes": 99434496,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 7200000,
+            "nextIndex": 7200001,
+            "frames": 1
+          },
+          "digestSha256": "c1ad644b595eb7fc666918615387c83960ceb474be035680dcaae53eac72ca93"
+        }
+      ],
+      "measuredStatistics": {
+        "elapsedMs": {
+          "first": 1.435291999999997,
+          "median": 0.8477499999999978,
+          "p95": 1.435291999999997,
+          "minimum": 0.6913750000000007,
+          "maximum": 1.435291999999997
+        },
+        "rssBeforeBytes": {
+          "first": 97107968,
+          "median": 97189888,
+          "p95": 98385920,
+          "minimum": 97107968,
+          "maximum": 98385920
+        },
+        "rssAfterBytes": {
+          "first": 97140736,
+          "median": 97828864,
+          "p95": 99434496,
+          "minimum": 97140736,
+          "maximum": 99434496
+        },
+        "processPeakRssBytes": {
+          "first": 97140736,
+          "median": 97828864,
+          "p95": 99434496,
+          "minimum": 97140736,
+          "maximum": 99434496
+        },
+        "metrics": {
+          "extentProbeReads": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "extentProbeBytes": {
+            "first": 8,
+            "median": 8,
+            "p95": 8,
+            "minimum": 8,
+            "maximum": 8
+          },
+          "lowerBoundProbeReads": {
+            "first": 47,
+            "median": 47,
+            "p95": 47,
+            "minimum": 47,
+            "maximum": 47
+          },
+          "lowerBoundProbeBytes": {
+            "first": 376,
+            "median": 376,
+            "p95": 376,
+            "minimum": 376,
+            "maximum": 376
+          },
+          "dataReadCalls": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "dataBytesRead": {
+            "first": 136,
+            "median": 136,
+            "p95": 136,
+            "minimum": 136,
+            "maximum": 136
+          },
+          "maximumReadBytes": {
+            "first": 136,
+            "median": 136,
+            "p95": 136,
+            "minimum": 136,
+            "maximum": 136
+          },
+          "recordsDecoded": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "selectedSamplesReturned": {
+            "first": 4,
+            "median": 4,
+            "p95": 4,
+            "minimum": 4,
+            "maximum": 4
+          }
+        }
+      },
+      "selectedOutputBytes": 24,
+      "frameMajorChannelReadAmplification": 8.5
+    },
+    {
+      "kind": "seek",
+      "label": "seek-end",
+      "requestedWindow": { "start": 14399999, "end": 14400000 },
+      "channels": [31, 2, 17, 0],
+      "warmup": {
+        "elapsedMs": 1.5643329999999978,
+        "rssBeforeBytes": 96370688,
+        "rssAfterBytes": 97009664,
+        "processPeakRssBytes": 97009664,
+        "metrics": {
+          "extentProbeReads": 1,
+          "extentProbeBytes": 8,
+          "lowerBoundProbeReads": 47,
+          "lowerBoundProbeBytes": 376,
+          "dataReadCalls": 1,
+          "dataBytesRead": 136,
+          "maximumReadBytes": 136,
+          "recordsDecoded": 1,
+          "selectedSamplesReturned": 4
+        },
+        "identity": {
+          "firstIndex": 14399999,
+          "nextIndex": 14400000,
+          "frames": 1
+        },
+        "digestSha256": "edf1de35f17fb8b7653f707cdd5c0f4339210080f9738bba92e9b2c57ffe6780"
+      },
+      "measured": [
+        {
+          "elapsedMs": 0.857999999999997,
+          "rssBeforeBytes": 97075200,
+          "rssAfterBytes": 97107968,
+          "processPeakRssBytes": 97107968,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 14399999,
+            "nextIndex": 14400000,
+            "frames": 1
+          },
+          "digestSha256": "edf1de35f17fb8b7653f707cdd5c0f4339210080f9738bba92e9b2c57ffe6780"
+        },
+        {
+          "elapsedMs": 0.7004590000000022,
+          "rssBeforeBytes": 97107968,
+          "rssAfterBytes": 97189888,
+          "processPeakRssBytes": 97189888,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 14399999,
+            "nextIndex": 14400000,
+            "frames": 1
+          },
+          "digestSha256": "edf1de35f17fb8b7653f707cdd5c0f4339210080f9738bba92e9b2c57ffe6780"
+        },
+        {
+          "elapsedMs": 0.6558750000000018,
+          "rssBeforeBytes": 97206272,
+          "rssAfterBytes": 97615872,
+          "processPeakRssBytes": 97615872,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 14399999,
+            "nextIndex": 14400000,
+            "frames": 1
+          },
+          "digestSha256": "edf1de35f17fb8b7653f707cdd5c0f4339210080f9738bba92e9b2c57ffe6780"
+        },
+        {
+          "elapsedMs": 0.6940420000000032,
+          "rssBeforeBytes": 97615872,
+          "rssAfterBytes": 98172928,
+          "processPeakRssBytes": 98172928,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 14399999,
+            "nextIndex": 14400000,
+            "frames": 1
+          },
+          "digestSha256": "edf1de35f17fb8b7653f707cdd5c0f4339210080f9738bba92e9b2c57ffe6780"
+        },
+        {
+          "elapsedMs": 1.040458000000001,
+          "rssBeforeBytes": 98172928,
+          "rssAfterBytes": 99221504,
+          "processPeakRssBytes": 99221504,
+          "metrics": {
+            "extentProbeReads": 1,
+            "extentProbeBytes": 8,
+            "lowerBoundProbeReads": 47,
+            "lowerBoundProbeBytes": 376,
+            "dataReadCalls": 1,
+            "dataBytesRead": 136,
+            "maximumReadBytes": 136,
+            "recordsDecoded": 1,
+            "selectedSamplesReturned": 4
+          },
+          "identity": {
+            "firstIndex": 14399999,
+            "nextIndex": 14400000,
+            "frames": 1
+          },
+          "digestSha256": "edf1de35f17fb8b7653f707cdd5c0f4339210080f9738bba92e9b2c57ffe6780"
+        }
+      ],
+      "measuredStatistics": {
+        "elapsedMs": {
+          "first": 0.857999999999997,
+          "median": 0.7004590000000022,
+          "p95": 1.040458000000001,
+          "minimum": 0.6558750000000018,
+          "maximum": 1.040458000000001
+        },
+        "rssBeforeBytes": {
+          "first": 97075200,
+          "median": 97206272,
+          "p95": 98172928,
+          "minimum": 97075200,
+          "maximum": 98172928
+        },
+        "rssAfterBytes": {
+          "first": 97107968,
+          "median": 97615872,
+          "p95": 99221504,
+          "minimum": 97107968,
+          "maximum": 99221504
+        },
+        "processPeakRssBytes": {
+          "first": 97107968,
+          "median": 97615872,
+          "p95": 99221504,
+          "minimum": 97107968,
+          "maximum": 99221504
+        },
+        "metrics": {
+          "extentProbeReads": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "extentProbeBytes": {
+            "first": 8,
+            "median": 8,
+            "p95": 8,
+            "minimum": 8,
+            "maximum": 8
+          },
+          "lowerBoundProbeReads": {
+            "first": 47,
+            "median": 47,
+            "p95": 47,
+            "minimum": 47,
+            "maximum": 47
+          },
+          "lowerBoundProbeBytes": {
+            "first": 376,
+            "median": 376,
+            "p95": 376,
+            "minimum": 376,
+            "maximum": 376
+          },
+          "dataReadCalls": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "dataBytesRead": {
+            "first": 136,
+            "median": 136,
+            "p95": 136,
+            "minimum": 136,
+            "maximum": 136
+          },
+          "maximumReadBytes": {
+            "first": 136,
+            "median": 136,
+            "p95": 136,
+            "minimum": 136,
+            "maximum": 136
+          },
+          "recordsDecoded": {
+            "first": 1,
+            "median": 1,
+            "p95": 1,
+            "minimum": 1,
+            "maximum": 1
+          },
+          "selectedSamplesReturned": {
+            "first": 4,
+            "median": 4,
+            "p95": 4,
+            "minimum": 4,
+            "maximum": 4
+          }
+        }
+      },
+      "selectedOutputBytes": 24,
+      "frameMajorChannelReadAmplification": 8.5
+    }
+  ],
+  "export": {
+    "requestedWindow": { "start": 0, "end": 14400000 },
+    "channels": [31, 2, 17, 0],
+    "rows": 14400000,
+    "outputBytes": 1407375683,
+    "digestSha256": "1290ed26f82a2b6a78d177c7d16dd6da7bd1becd238d20b9f06624c0db19015d",
+    "elapsedMs": 62331.834667,
+    "consumerDelayMs": 5,
+    "delayEveryRows": 2048,
+    "consumerPauses": 7031,
+    "metrics": {
+      "extentProbeReads": 2,
+      "extentProbeBytes": 16,
+      "lowerBoundProbeReads": 47,
+      "lowerBoundProbeBytes": 376,
+      "dataReadCalls": 29938,
+      "dataBytesRead": 1958400000,
+      "maximumReadBytes": 65416,
+      "recordsDecoded": 14400000,
+      "selectedSamplesReturned": 57600000
+    },
+    "memoryWindows": [
+      {
+        "label": "early",
+        "measurements": 21,
+        "minimumRssBytes": 94420992,
+        "maximumRssBytes": 228917248,
+        "meanRssBytes": 201719028
+      },
+      {
+        "label": "middle",
+        "measurements": 22,
+        "minimumRssBytes": 197951488,
+        "maximumRssBytes": 201424896,
+        "meanRssBytes": 200248227
+      },
+      {
+        "label": "late",
+        "measurements": 23,
+        "minimumRssBytes": 199278592,
+        "maximumRssBytes": 200196096,
+        "meanRssBytes": 199701014
+      }
+    ],
+    "memoryComparison": {
+      "middleMinusEarlyMeanRssBytes": -1470801,
+      "lateMinusEarlyMeanRssBytes": -2018014,
+      "interpretation": "RSS is compared across equal progress thirds while output history remains streamed."
+    },
+    "processPeakRssBytes": 228933632,
+    "frameMajorChannelReadAmplification": 8.5
+  },
+  "playback": {
+    "pacingTolerance": "Explicit project engineering evidence tolerance; not an assessment requirement.",
+    "cases": [
+      {
+        "label": "playback-0.25x",
+        "speed": 0.25,
+        "requestedSourceFrames": 48000,
+        "emittedFrames": 48009,
+        "emittedSamples": 192036,
+        "position": 48009,
+        "sourceElapsedSeconds": 12.00225,
+        "activeElapsedMs": 48010.039,
+        "wallElapsedMs": 48010.42454199999,
+        "achievedSpeed": 0.24999458967321397,
+        "currentLagFrames": 1,
+        "currentLagMs": 0.25,
+        "maximumLagMs": 0.5,
+        "maximumBatchFrames": 12,
+        "maximumBatchBytes": 288,
+        "sinkDelayMs": 0,
+        "skippedDuplicateFrames": 0,
+        "identity": { "firstIndex": 0, "nextIndex": 48009, "frames": 48009 },
+        "digestSha256": "6e5e75a1451d7b6baef67ed17b6db05c10929cf33277ce2c4e5ca18836367731",
+        "finalRssBytes": 69976064,
+        "processPeakRssBytes": 102662144,
+        "engineeringToleranceFraction": 0.1,
+        "withinEngineeringTolerance": true
+      },
+      {
+        "label": "playback-0.5x",
+        "speed": 0.5,
+        "requestedSourceFrames": 48000,
+        "emittedFrames": 48015,
+        "emittedSamples": 192060,
+        "position": 2928015,
+        "sourceElapsedSeconds": 12.00375,
+        "activeElapsedMs": 24008.660957999997,
+        "wallElapsedMs": 24009.077292,
+        "achievedSpeed": 0.4999758221001574,
+        "currentLagFrames": 2,
+        "currentLagMs": 0.5,
+        "maximumLagMs": 0.5,
+        "maximumBatchFrames": 24,
+        "maximumBatchBytes": 576,
+        "sinkDelayMs": 0,
+        "skippedDuplicateFrames": 0,
+        "identity": {
+          "firstIndex": 2880000,
+          "nextIndex": 2928015,
+          "frames": 48015
+        },
+        "digestSha256": "8c16193953e2acb0ee1abb7fd1ed36e86fd3926cf16751ca4dd9e00097fdaebf",
+        "finalRssBytes": 101302272,
+        "processPeakRssBytes": 102252544,
+        "engineeringToleranceFraction": 0.1,
+        "withinEngineeringTolerance": true
+      },
+      {
+        "label": "playback-1x",
+        "speed": 1,
+        "requestedSourceFrames": 48000,
+        "emittedFrames": 48014,
+        "emittedSamples": 192056,
+        "position": 5808014,
+        "sourceElapsedSeconds": 12.0035,
+        "activeElapsedMs": 12004.177959,
+        "wallElapsedMs": 12005.101833,
+        "achievedSpeed": 0.9999435230798548,
+        "currentLagFrames": 2,
+        "currentLagMs": 0.5,
+        "maximumLagMs": 1.25,
+        "maximumBatchFrames": 48,
+        "maximumBatchBytes": 1152,
+        "sinkDelayMs": 0,
+        "skippedDuplicateFrames": 0,
+        "identity": {
+          "firstIndex": 5760000,
+          "nextIndex": 5808014,
+          "frames": 48014
+        },
+        "digestSha256": "c6a2758701fbe8273e3e8a3d4c356480e204539dfba7d6643292a99a120cc5f0",
+        "finalRssBytes": 102531072,
+        "processPeakRssBytes": 104284160,
+        "engineeringToleranceFraction": 0.1,
+        "withinEngineeringTolerance": true
+      },
+      {
+        "label": "playback-2x",
+        "speed": 2,
+        "requestedSourceFrames": 48000,
+        "emittedFrames": 48072,
+        "emittedSamples": 192288,
+        "position": 8688072,
+        "sourceElapsedSeconds": 12.018,
+        "activeElapsedMs": 6010.180333,
+        "wallElapsedMs": 6011.244625,
+        "achievedSpeed": 1.9996072221016334,
+        "currentLagFrames": 9,
+        "currentLagMs": 2.25,
+        "maximumLagMs": 3.5,
+        "maximumBatchFrames": 96,
+        "maximumBatchBytes": 2304,
+        "sinkDelayMs": 0,
+        "skippedDuplicateFrames": 0,
+        "identity": {
+          "firstIndex": 8640000,
+          "nextIndex": 8688072,
+          "frames": 48072
+        },
+        "digestSha256": "fa8caa05d4353ec2c20ba59692949f6b91ca848ff3bfd0bc814dcb75d15056e3",
+        "finalRssBytes": 101908480,
+        "processPeakRssBytes": 102793216,
+        "engineeringToleranceFraction": 0.1,
+        "withinEngineeringTolerance": true
+      },
+      {
+        "label": "playback-4x",
+        "speed": 4,
+        "requestedSourceFrames": 48000,
+        "emittedFrames": 48000,
+        "emittedSamples": 192000,
+        "position": 14400000,
+        "sourceElapsedSeconds": 12,
+        "activeElapsedMs": 3005.267167,
+        "wallElapsedMs": 3006.139208,
+        "achievedSpeed": 3.992989419299772,
+        "currentLagFrames": 0,
+        "currentLagMs": 0,
+        "maximumLagMs": 11,
+        "maximumBatchFrames": 191,
+        "maximumBatchBytes": 4584,
+        "sinkDelayMs": 0,
+        "skippedDuplicateFrames": 0,
+        "identity": {
+          "firstIndex": 14352000,
+          "nextIndex": 14400000,
+          "frames": 48000
+        },
+        "digestSha256": "696b4333a88d7d11d70b8655841b79d61c7ec63fff2966971ac0e663da72f92d",
+        "finalRssBytes": 103022592,
+        "processPeakRssBytes": 109166592,
+        "engineeringToleranceFraction": 0.1,
+        "withinEngineeringTolerance": true
+      }
+    ],
+    "transitions": {
+      "pauseDurationMs": 2000,
+      "pausedPositionStable": true,
+      "pausedEmissionStable": true,
+      "pausedTimeExcluded": true,
+      "resumePreservedNextPosition": true,
+      "pausedSeekReset": true,
+      "speedReset": true,
+      "playingSeekTimingReset": true,
+      "playingSeekAcknowledgementActiveElapsedMs": 0.05275000000074215,
+      "playingSeekAcknowledgedAt": 14392000,
+      "firstPostPlayingSeekIndex": 14392000,
+      "noStaleOutputAfterSeek": true,
+      "finalPosition": 14400000,
+      "processPeakRssBytes": 103645184
+    },
+    "slowSink": {
+      "label": "playback-4x-slow-sink",
+      "speed": 4,
+      "requestedSourceFrames": 48000,
+      "emittedFrames": 48000,
+      "emittedSamples": 192000,
+      "position": 14400000,
+      "sourceElapsedSeconds": 12,
+      "activeElapsedMs": 5190.421042,
+      "wallElapsedMs": 5191.241958,
+      "achievedSpeed": 2.3119511698372928,
+      "currentLagFrames": 0,
+      "currentLagMs": 0,
+      "maximumLagMs": 5199.5,
+      "maximumBatchFrames": 256,
+      "maximumBatchBytes": 6144,
+      "sinkDelayMs": 25,
+      "skippedDuplicateFrames": 0,
+      "identity": {
+        "firstIndex": 14352000,
+        "nextIndex": 14400000,
+        "frames": 48000
+      },
+      "digestSha256": "696b4333a88d7d11d70b8655841b79d61c7ec63fff2966971ac0e663da72f92d",
+      "finalRssBytes": 102875136,
+      "processPeakRssBytes": 107380736,
+      "noDroppedOrDuplicatedOutput": true,
+      "interpretation": "The engine preserves data and position while bounded catch-up can extend completion."
+    }
+  },
+  "verification": {
+    "format": "SCOPE-VERIFICATION/1",
+    "recordsScanned": 14400000,
+    "bytesScanned": 1958400000,
+    "elapsedMs": 4123,
+    "finalRssBytes": 102170624,
+    "peakRssBytes": 102170624,
+    "discrepancySamples": 0,
+    "formatErrors": 0,
+    "result": "PASS"
+  }
+}

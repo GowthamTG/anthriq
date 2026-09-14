@@ -3,6 +3,7 @@ import type {
   FileIdentity,
   RangePreview,
   RangeQuery,
+  RangeReadMetrics,
   RangeSelection,
   RecordingMetadata,
   RecordingInspection,
@@ -13,6 +14,20 @@ import { open, writeFile, rename, stat } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { stride } from './signal.ts';
 import { readMetadata } from './metadata.ts';
+
+export const RANGE_READ_CHUNK_BYTES = 64 * 1024;
+
+export const createRangeReadMetrics = (): RangeReadMetrics => ({
+  extentProbeReads: 0,
+  extentProbeBytes: 0,
+  lowerBoundProbeReads: 0,
+  lowerBoundProbeBytes: 0,
+  dataReadCalls: 0,
+  dataBytesRead: 0,
+  maximumReadBytes: 0,
+  recordsDecoded: 0,
+  selectedSamplesReturned: 0,
+});
 
 export async function writeAll(file: FileHandle, buffer: Buffer) {
   let offset = 0;
@@ -174,23 +189,44 @@ async function readExact(
   buffer: Buffer,
   position: number,
   bytes = buffer.length,
+  metrics?: RangeReadMetrics,
+  kind: 'extent' | 'lower-bound' | 'data' = 'data',
 ) {
   let offset = 0;
   while (offset < bytes) {
     const { bytesRead } = await file.read(buffer, offset, bytes - offset, position + offset);
     if (!bytesRead) throw new Error('Unexpected end of recording');
+    if (metrics) {
+      metrics.maximumReadBytes = Math.max(metrics.maximumReadBytes, bytesRead);
+      if (kind === 'extent') {
+        metrics.extentProbeReads++;
+        metrics.extentProbeBytes += bytesRead;
+      } else if (kind === 'lower-bound') {
+        metrics.lowerBoundProbeReads++;
+        metrics.lowerBoundProbeBytes += bytesRead;
+      } else {
+        metrics.dataReadCalls++;
+        metrics.dataBytesRead += bytesRead;
+      }
+    }
     offset += bytesRead;
   }
   return buffer;
 }
 
-export async function lowerBound(file: FileHandle, count: number, width: number, frame: number) {
+export async function lowerBound(
+  file: FileHandle,
+  count: number,
+  width: number,
+  frame: number,
+  metrics?: RangeReadMetrics,
+) {
   let low = 0,
     high = count;
   const index = Buffer.allocUnsafe(8);
   while (low < high) {
     const mid = Math.floor((low + high) / 2);
-    await readExact(file, index, mid * width);
+    await readExact(file, index, mid * width, index.length, metrics, 'lower-bound');
     if (index.readBigUInt64LE() < BigInt(frame)) low = mid + 1;
     else high = mid;
   }
@@ -262,10 +298,21 @@ export function selection(
   };
 }
 
-async function availableBound(file: FileHandle, metadata: RecordingInspection) {
+async function availableBound(
+  file: FileHandle,
+  metadata: RecordingInspection,
+  metrics?: RangeReadMetrics,
+) {
   if (!metadata.completeRecords) return 0;
   const index = Buffer.allocUnsafe(8);
-  await readExact(file, index, (metadata.completeRecords - 1) * metadata.recordBytes);
+  await readExact(
+    file,
+    index,
+    (metadata.completeRecords - 1) * metadata.recordBytes,
+    index.length,
+    metrics,
+    'extent',
+  );
   const last = index.readBigUInt64LE();
   if (last > BigInt(Number.MAX_SAFE_INTEGER))
     throw Object.assign(new Error('Stored frame index exceeds the supported safe range'), {
@@ -284,6 +331,7 @@ async function availableBound(file: FileHandle, metadata: RecordingInspection) {
 export async function rangeSelection(
   directory: string,
   options: RangeQuery = {},
+  metrics?: RangeReadMetrics,
 ): Promise<{ inspection: RecordingInspection; selection: RangeSelection }> {
   const metadata = await inspect(directory);
   if (metadata.verification.status === 'integrity-failed') {
@@ -300,7 +348,7 @@ export async function rangeSelection(
   try {
     return {
       inspection: metadata,
-      selection: selection(metadata, await availableBound(file, metadata), options),
+      selection: selection(metadata, await availableBound(file, metadata, metrics), options),
     };
   } finally {
     await file.close();
@@ -308,18 +356,44 @@ export async function rangeSelection(
 }
 
 // Reads at most 64 KiB of frame data at once; the caller owns materialization.
-export async function* readFrames(directory: string, options: RangeQuery = {}) {
-  const { inspection: metadata, selection: chosen } = await rangeSelection(directory, options);
+export async function* readFrames(
+  directory: string,
+  options: RangeQuery = {},
+  metrics?: RangeReadMetrics,
+) {
+  const { inspection: metadata, selection: chosen } = await rangeSelection(
+    directory,
+    options,
+    metrics,
+  );
   const { start, end, channels } = chosen;
   const file = await open(join(directory, 'frames.bin'), 'r');
   try {
-    const first = await lowerBound(file, metadata.completeRecords, metadata.recordBytes, start);
-    const last = await lowerBound(file, metadata.completeRecords, metadata.recordBytes, end);
-    const batch = Math.max(1, Math.floor(65536 / metadata.recordBytes));
+    const first = await lowerBound(
+      file,
+      metadata.completeRecords,
+      metadata.recordBytes,
+      start,
+      metrics,
+    );
+    const last = await lowerBound(
+      file,
+      metadata.completeRecords,
+      metadata.recordBytes,
+      end,
+      metrics,
+    );
+    const batch = Math.max(1, Math.floor(RANGE_READ_CHUNK_BYTES / metadata.recordBytes));
     const buffer = Buffer.allocUnsafe(batch * metadata.recordBytes);
     for (let ordinal = first; ordinal < last; ordinal += batch) {
       const count = Math.min(batch, last - ordinal);
-      await readExact(file, buffer, ordinal * metadata.recordBytes, count * metadata.recordBytes);
+      await readExact(
+        file,
+        buffer,
+        ordinal * metadata.recordBytes,
+        count * metadata.recordBytes,
+        metrics,
+      );
       for (let n = 0; n < count; n++) {
         const offset = n * metadata.recordBytes;
         const index = buffer.readBigUInt64LE(offset);
@@ -327,6 +401,8 @@ export async function* readFrames(directory: string, options: RangeQuery = {}) {
           throw Object.assign(new Error('Stored frame index exceeds the supported safe range'), {
             statusCode: 422,
           });
+        metrics && metrics.recordsDecoded++;
+        if (metrics) metrics.selectedSamplesReturned += channels.length;
         yield {
           index: Number(index),
           values: channels.map((c) => buffer.readFloatLE(offset + 8 + c * 4)),
@@ -360,7 +436,7 @@ export async function previewFrames(
 export async function* scanFrames(directory: string, metadata: RecordingInspection) {
   const file = await open(join(directory, 'frames.bin'), 'r');
   const width = metadata.recordBytes;
-  const batch = Math.max(1, Math.floor(65536 / width));
+  const batch = Math.max(1, Math.floor(RANGE_READ_CHUNK_BYTES / width));
   const buffer = Buffer.allocUnsafe(batch * width);
   try {
     for (let ordinal = 0; ordinal < metadata.completeRecords; ordinal += batch) {

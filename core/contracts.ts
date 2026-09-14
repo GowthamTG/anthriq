@@ -207,6 +207,17 @@ export interface RangeSelection {
   channels: number[];
   prefix: boolean;
 }
+export interface RangeReadMetrics {
+  extentProbeReads: number;
+  extentProbeBytes: number;
+  lowerBoundProbeReads: number;
+  lowerBoundProbeBytes: number;
+  dataReadCalls: number;
+  dataBytesRead: number;
+  maximumReadBytes: number;
+  recordsDecoded: number;
+  selectedSamplesReturned: number;
+}
 export interface RangePreview extends RangeSelection {
   warnings: string[];
   observations: Frame[];

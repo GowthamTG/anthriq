@@ -9,17 +9,19 @@ import type {
 import { inspect, rangeSelection, readFrames } from './storage.ts';
 
 const TICK_MS = 10;
-const MAX_BATCH_FRAMES = 256;
-const MAX_BATCH_BYTES = 64 * 1024;
-const MAX_CATCH_UP_RECORDS = 4096;
-const PREVIEW_CAPACITY = 256;
+export const PLAYBACK_LIMITS = Object.freeze({
+  maximumBatchFrames: 256,
+  maximumBatchBytes: 64 * 1024,
+  maximumCatchUpRecordsPerTick: 4096,
+  previewCapacity: 256,
+});
 const PREVIEW_POINTS_PER_SECOND = 200;
 
 const emptyPreview = (): PlaybackPreview => ({
   channels: [],
   observations: [],
   decimation: 1,
-  capacity: PREVIEW_CAPACITY,
+  capacity: PLAYBACK_LIMITS.previewCapacity,
 });
 
 export const idlePlaybackState = (): PlaybackState => ({
@@ -76,7 +78,10 @@ export class Playback {
     this.previewChannels = state.channels.slice(0, 4);
     this.maxBatchFrames = Math.max(
       1,
-      Math.min(MAX_BATCH_FRAMES, Math.floor(MAX_BATCH_BYTES / (8 + state.channels.length * 4))),
+      Math.min(
+        PLAYBACK_LIMITS.maximumBatchFrames,
+        Math.floor(PLAYBACK_LIMITS.maximumBatchBytes / (8 + state.channels.length * 4)),
+      ),
     );
   }
 
@@ -107,7 +112,7 @@ export class Playback {
         channels: selection.channels.slice(0, 4),
         observations: [],
         decimation: Math.max(1, Math.ceil(inspection.sampleRate / PREVIEW_POINTS_PER_SECOND)),
-        capacity: PREVIEW_CAPACITY,
+        capacity: PLAYBACK_LIMITS.previewCapacity,
       },
     };
     const playback = new Playback(directory, sink, state);
@@ -449,7 +454,11 @@ export class Playback {
       this.publish();
     };
 
-    while (this.pending && this.pending.index < due && processed < MAX_CATCH_UP_RECORDS) {
+    while (
+      this.pending &&
+      this.pending.index < due &&
+      processed < PLAYBACK_LIMITS.maximumCatchUpRecordsPerTick
+    ) {
       const frame = this.pending;
       processed++;
       await this.readNext();
@@ -468,7 +477,10 @@ export class Playback {
     await commit();
     if (generation !== this.generation || this.closed) return;
     this.state.skippedDuplicateFrames += duplicates;
-    if ((!this.pending || this.pending.index >= due) && processed < MAX_CATCH_UP_RECORDS) {
+    if (
+      (!this.pending || this.pending.index >= due) &&
+      processed < PLAYBACK_LIMITS.maximumCatchUpRecordsPerTick
+    ) {
       this.state.position = Math.max(this.state.position, due);
       this.state.positionSeconds = this.state.position / this.state.sampleRate!;
     }
@@ -495,7 +507,7 @@ export class Playback {
         ),
       });
     this.state.preview.observations = [...this.state.preview.observations, ...selected].slice(
-      -PREVIEW_CAPACITY,
+      -PLAYBACK_LIMITS.previewCapacity,
     );
   }
 }

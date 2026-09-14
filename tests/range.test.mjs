@@ -8,6 +8,8 @@ import { join } from 'node:path';
 const execute = promisify(execFile);
 const cli = (...args) => execute(process.execPath, ['core/cli.ts', ...args], { timeout: 10000 });
 const { csvHeader, csvLines, csvRow } = await import('../core/export.ts');
+const { createRangeReadMetrics, readFrames, RANGE_READ_CHUNK_BYTES } =
+  await import('../core/storage.ts');
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'scope-range-'));
@@ -41,6 +43,31 @@ test('retrieve uses half-open index/time ranges and preserves requested channel 
     [3, 4],
   );
   assert.equal((await cli('retrieve', directory, '--start', '99')).stdout, '');
+});
+
+test('optional read instrumentation reports exact probes, physical bytes, and selected samples', async (t) => {
+  const directory = await fixture(t);
+  const metrics = createRangeReadMetrics();
+  const frames = [];
+  for await (const frame of readFrames(directory, { start: 2, end: 5, channels: [3, 1] }, metrics))
+    frames.push(frame);
+
+  assert.deepEqual(
+    frames.map((frame) => frame.index),
+    [2, 3, 4],
+  );
+  assert.deepEqual(metrics, {
+    extentProbeReads: 1,
+    extentProbeBytes: 8,
+    lowerBoundProbeReads: 6,
+    lowerBoundProbeBytes: 48,
+    dataReadCalls: 1,
+    dataBytesRead: 72,
+    maximumReadBytes: 72,
+    recordsDecoded: 3,
+    selectedSamplesReturned: 6,
+  });
+  assert.ok(metrics.maximumReadBytes <= RANGE_READ_CHUNK_BYTES);
 });
 
 test('retrieve rejects conflicting and invalid selections', async (t) => {

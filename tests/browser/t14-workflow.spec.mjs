@@ -98,10 +98,17 @@ test('the complete reviewer workflow is keyboard-operable and keeps verification
   await timeline.press('ArrowRight');
   await expect.poll(async () => Number(await timeline.inputValue())).toBeGreaterThan(0);
   const addedChannel = page.getByRole('checkbox', { name: 'Ch 1' });
+  await expect(addedChannel).toBeEnabled();
+  await expect(addedChannel).toBeChecked();
+  await addedChannel.focus();
+  await addedChannel.press('Space');
+  await expect(addedChannel).not.toBeChecked();
+  await expect(addedChannel).toBeEnabled();
   await addedChannel.focus();
   await addedChannel.press('Space');
   await expect(addedChannel).toBeChecked();
   const removedChannel = page.getByRole('checkbox', { name: 'Ch 0' });
+  await expect(removedChannel).toBeEnabled();
   await removedChannel.focus();
   await removedChannel.press('Space');
   await expect(removedChannel).not.toBeChecked();

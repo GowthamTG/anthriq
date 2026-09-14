@@ -11,6 +11,22 @@ export interface Settings {
   stallForMs: number;
   displayName: string;
 }
+export interface RuntimeInfo {
+  mode: 'local' | 'public-demo';
+  storage: 'local-filesystem' | 'persistent-hosted-volume';
+  limits: null | {
+    maximumChannels: number;
+    maximumSampleRate: number;
+    minimumDurationSeconds: number;
+    maximumDurationSeconds: number;
+    maximumBufferBytes: number;
+    retainedRecordings: number;
+    acquisitionStartsPerHour: number;
+    verificationStartsPerHour: number;
+    diagnosticScenarios: false;
+  };
+  availability: 'local' | 'best-effort-free-tier';
+}
 export type SettingsInput = Partial<Record<keyof Settings, number | string>>;
 export interface GeneratorMetrics {
   elapsedSeconds: number;
@@ -49,8 +65,13 @@ export interface RecordingMetadata extends Settings {
   peakQueueBytes?: number;
   recorderPeakRssBytes?: number;
   recorderStall?: RecorderStall;
+  retention?: RecordingRetention;
   diagnostic?: DiagnosticProvenance;
   error?: string;
+}
+export interface RecordingRetention {
+  format: 'SCOPE-RETENTION/1';
+  class: 'temporary-public-demo';
 }
 export const DIAGNOSTIC_SCENARIOS = [
   'clean',

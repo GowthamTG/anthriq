@@ -47,6 +47,17 @@ export function parseMetadata(raw: unknown): RecordingMetadata {
     (typeof m.displayName !== 'string' || m.displayName.length > 120)
   )
     invalid('Invalid metadata display name');
+  if (m.retention !== undefined) {
+    if (!m.retention || typeof m.retention !== 'object' || Array.isArray(m.retention))
+      invalid('Invalid recording retention');
+    const retention = m.retention as Record<string, unknown>;
+    if (
+      retention.format !== 'SCOPE-RETENTION/1' ||
+      retention.class !== 'temporary-public-demo' ||
+      Object.keys(retention).some((key) => !['format', 'class'].includes(key))
+    )
+      invalid('Invalid recording retention');
+  }
   if (m.diagnostic !== undefined) {
     if (!m.diagnostic || typeof m.diagnostic !== 'object' || Array.isArray(m.diagnostic))
       invalid('Invalid diagnostic provenance');

@@ -10,6 +10,7 @@ import { requestJson } from '../http';
 import { useRecordingLibrary } from '../use-recording-library';
 import { useServiceEvents } from '../use-service-events';
 import { WorkbenchHeader } from '../workbench-header';
+import { useRuntime } from '../use-runtime';
 
 const number = (value: number | null | undefined) =>
   value == null ? 'Unknown' : value.toLocaleString('en-US');
@@ -54,6 +55,7 @@ type ScenarioRun = {
 };
 
 export default function Verify() {
+  const runtime = useRuntime();
   const [job, setJob] = useState<VerificationState>(initialState);
   const [savedReport, setSavedReport] = useState<VerificationReport | null>(null);
   const [error, setError] = useState('');
@@ -202,7 +204,7 @@ export default function Verify() {
 
   return (
     <>
-      <WorkbenchHeader current="verify" connection={connection} />
+      <WorkbenchHeader current="verify" connection={connection} runtimeMode={runtime?.mode} />
       <main
         id="main-content"
         tabIndex={-1}
@@ -247,49 +249,58 @@ export default function Verify() {
             <p>{job.error}</p>
           </div>
         )}
-        <section aria-label="Integrity scenario lab" className="mb-6 border border-line bg-panel">
-          <div className="flex flex-wrap items-start justify-between gap-5 border-b border-line p-5">
-            <div>
-              <p className="micro">INTEGRITY SCENARIO LAB / DISPOSABLE</p>
-              <h2 className="mt-3">Prove the detector.</h2>
-              <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-                Choose a completed acquisition as the signal source. SCOPE synthesizes a separate
-                eight-frame bundle, injects one known condition, then scans the persisted files
-                through the real verification worker. The source bundle is never opened for writing.
-              </p>
-            </div>
-            <output
-              data-testid="scenario-state"
-              role={scenarioRun?.error ? 'alert' : 'status'}
-              aria-live={scenarioRun?.error ? 'assertive' : 'polite'}
-              className={`font-mono text-[10px] uppercase tracking-[.08em] ${scenarioRun?.error ? 'text-[#ffba89]' : 'text-muted'}`}
-            >
-              {scenarioState}
-            </output>
-          </div>
-          <div className="grid grid-cols-5 gap-px bg-line max-[1050px]:grid-cols-2 max-[560px]:grid-cols-1">
-            {scenarios.map((scenario) => (
-              <div key={scenario.id} className="flex min-h-[150px] flex-col bg-panel-deep p-5">
-                <span className="micro">{scenario.name}</span>
-                <p className="my-4 text-xs leading-relaxed text-muted">{scenario.description}</p>
-                <button
-                  className="mt-auto border border-[#78826e] px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[.06em] text-white hover:bg-[#2e3429] disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={!eligibleSource || busy || !connected}
-                  onClick={() => startScenario(scenario.id)}
-                >
-                  Create {scenario.name} scenario ↗
-                </button>
+        {runtime?.mode === 'local' && (
+          <section aria-label="Integrity scenario lab" className="mb-6 border border-line bg-panel">
+            <div className="flex flex-wrap items-start justify-between gap-5 border-b border-line p-5">
+              <div>
+                <p className="micro">INTEGRITY SCENARIO LAB / DISPOSABLE</p>
+                <h2 className="mt-3">Prove the detector.</h2>
+                <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
+                  Choose a completed acquisition as the signal source. SCOPE synthesizes a separate
+                  eight-frame bundle, injects one known condition, then scans the persisted files
+                  through the real verification worker. The source bundle is never opened for
+                  writing.
+                </p>
               </div>
-            ))}
-          </div>
-          {!eligibleSource && (
-            <p className="border-t border-line p-4 text-xs text-muted">
-              {details?.diagnostic
-                ? 'Diagnostic bundles cannot seed another scenario. Select a completed acquisition recording.'
-                : 'Select a completed acquisition recording to enable the scenario controls.'}
-            </p>
-          )}
-        </section>
+              <output
+                data-testid="scenario-state"
+                role={scenarioRun?.error ? 'alert' : 'status'}
+                aria-live={scenarioRun?.error ? 'assertive' : 'polite'}
+                className={`font-mono text-[10px] uppercase tracking-[.08em] ${scenarioRun?.error ? 'text-[#ffba89]' : 'text-muted'}`}
+              >
+                {scenarioState}
+              </output>
+            </div>
+            <div className="grid grid-cols-5 gap-px bg-line max-[1050px]:grid-cols-2 max-[560px]:grid-cols-1">
+              {scenarios.map((scenario) => (
+                <div key={scenario.id} className="flex min-h-[150px] flex-col bg-panel-deep p-5">
+                  <span className="micro">{scenario.name}</span>
+                  <p className="my-4 text-xs leading-relaxed text-muted">{scenario.description}</p>
+                  <button
+                    className="mt-auto border border-[#78826e] px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[.06em] text-white hover:bg-[#2e3429] disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={!eligibleSource || busy || !connected}
+                    onClick={() => startScenario(scenario.id)}
+                  >
+                    Create {scenario.name} scenario ↗
+                  </button>
+                </div>
+              ))}
+            </div>
+            {!eligibleSource && (
+              <p className="border-t border-line p-4 text-xs text-muted">
+                {details?.diagnostic
+                  ? 'Diagnostic bundles cannot seed another scenario. Select a completed acquisition recording.'
+                  : 'Select a completed acquisition recording to enable the scenario controls.'}
+              </p>
+            )}
+          </section>
+        )}
+        {runtime?.mode === 'public-demo' && (
+          <p className="notice mb-6" data-testid="public-demo-verification-note">
+            Disposable integrity scenarios are disabled on the shared public service. Physical
+            verification of genuine captures remains available below.
+          </p>
+        )}
         <div className="grid grid-cols-[minmax(250px,.7fr)_minmax(0,1.5fr)] items-start gap-6 max-[900px]:grid-cols-1">
           <section
             aria-label="Recordings to verify"

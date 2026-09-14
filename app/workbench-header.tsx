@@ -15,15 +15,20 @@ const connectionLabels: Record<ServiceConnection, string> = {
   offline: 'Disconnected',
 };
 
+const hostedLiveLabel = 'Live · hosted demo';
+
 export function WorkbenchHeader({
   current,
   connection,
   sessionId,
+  runtimeMode,
 }: {
   current: WorkspaceSection;
   connection?: ServiceConnection;
   sessionId?: string | null;
+  runtimeMode?: 'local' | 'public-demo';
 }) {
+  const liveLabel = runtimeMode === 'public-demo' ? hostedLiveLabel : connectionLabels.live;
   return (
     <>
       <a className="skip-link" href="#main-content">
@@ -56,7 +61,7 @@ export function WorkbenchHeader({
             aria-live="polite"
           >
             <span className={connection === 'live' ? 'connection-dot online' : 'connection-dot'} />
-            <span>{connectionLabels[connection]}</span>
+            <span>{connection === 'live' ? liveLabel : connectionLabels[connection]}</span>
           </div>
         )}
       </header>

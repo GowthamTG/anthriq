@@ -23,12 +23,26 @@ import {
 import { csvLines } from './core/export.ts';
 import { PlaybackOwner } from './core/playback.ts';
 import { eventFitsClientBuffer, MAX_CLIENT_BUFFER_BYTES } from './core/event-buffer.ts';
+import {
+  hideHostedLibraryLocations,
+  hideHostedLocation,
+  prunePublicDemoRecordings,
+  PUBLIC_DEMO_LIMITS,
+  RollingWindowLimit,
+  serverRuntime,
+  validatePublicDemoSettings,
+} from './core/hosted-demo.ts';
 
 const dev = process.argv.includes('--dev');
 const port = Number(process.env.PORT || 3000);
-const hostname = '127.0.0.1';
+const runtime = serverRuntime();
+const hostname = runtime.hostname;
 const root = resolve(process.env.SCOPE_RECORDINGS_DIR || 'recordings');
-const acquisition = new Acquisition(root);
+const acquisition = new Acquisition(
+  root,
+  runtime.publicDemo ? { seconds: 3 } : {},
+  runtime.publicDemo ? { format: 'SCOPE-RETENTION/1', class: 'temporary-public-demo' } : undefined,
+);
 const verification = new Verification(root);
 const playback = new PlaybackOwner(root);
 const app = next({ dev, hostname, port });
@@ -58,6 +72,8 @@ const observerDiagnostics = {
 };
 let revision = 0,
   closing = false;
+const acquisitionStarts = new RollingWindowLimit(PUBLIC_DEMO_LIMITS.acquisitionStartsPerHour);
+const verificationStarts = new RollingWindowLimit(PUBLIC_DEMO_LIMITS.verificationStartsPerHour);
 acquisition.subscribe(() => {
   revision++;
 });
@@ -251,8 +267,11 @@ function eventQuery(url: URL) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${hostname}:${port}`);
   try {
+    if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { ready: true });
     if (!url.pathname.startsWith('/api/')) return await handle(req, res);
     if (closing) return json(res, 503, { error: 'Application is shutting down' });
+    if (req.method === 'GET' && url.pathname === '/api/runtime')
+      return json(res, 200, runtime.info);
     if (req.method === 'GET' && url.pathname === '/api/state') {
       const { clientId } = eventQuery(url);
       if (clientId && !acquisition.hasPreviewSession(clientId))
@@ -337,7 +356,30 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/acquisitions') {
       const settings = await readConfiguration(req);
-      return json(res, 202, acquisition.start(settings));
+      if (runtime.publicDemo) {
+        validatePublicDemoSettings(settings);
+        if (['starting', 'recording', 'stopping'].includes(acquisition.snapshot().status))
+          return json(res, 409, { error: 'An acquisition is already active' });
+        acquisitionStarts.check();
+        const acquisitionState = acquisition.snapshot();
+        const verificationState = verification.snapshot();
+        const playbackState = playback.snapshot();
+        const protectedIds = new Set(
+          [
+            ['starting', 'recording', 'stopping'].includes(acquisitionState.status)
+              ? acquisitionState.id
+              : null,
+            ['creating', 'running'].includes(verificationState.status)
+              ? verificationState.recordingId
+              : null,
+            playbackState.recordingId,
+          ].filter((id): id is string => Boolean(id)),
+        );
+        await prunePublicDemoRecordings(root, protectedIds);
+      }
+      const state = acquisition.start(settings);
+      if (runtime.publicDemo) acquisitionStarts.take();
+      return json(res, 202, state);
     }
     const previewControl = url.pathname.match(/^\/api\/acquisitions\/([^/]+)\/preview$/);
     if (req.method === 'POST' && previewControl) {
@@ -422,13 +464,14 @@ const server = createServer(async (req, res) => {
       ) {
         return json(res, 400, { error: 'Provide only a recordingId' });
       }
-      return json(
-        res,
-        202,
-        await verification.start((body as { recordingId: string }).recordingId),
-      );
+      if (runtime.publicDemo) verificationStarts.check();
+      const state = await verification.start((body as { recordingId: string }).recordingId);
+      if (runtime.publicDemo) verificationStarts.take();
+      return json(res, 202, state);
     }
     if (req.method === 'POST' && url.pathname === '/api/verification-scenarios') {
+      if (runtime.publicDemo)
+        return json(res, 403, { error: 'Diagnostic scenarios are unavailable in the public demo' });
       const body = await readJson(req);
       if (!body || typeof body !== 'object' || Array.isArray(body))
         return json(res, 400, { error: 'Provide only a sourceRecordingId and scenario' });
@@ -456,14 +499,11 @@ const server = createServer(async (req, res) => {
       for (const key of url.searchParams.keys())
         if (!['limit', 'cursor'].includes(key))
           return json(res, 400, { error: `Unknown query parameter: ${key}` });
-      return json(
-        res,
-        200,
-        await listRecordings(root, {
-          limit: url.searchParams.get('limit') ?? undefined,
-          cursor: url.searchParams.get('cursor') ?? undefined,
-        }),
-      );
+      const page = await listRecordings(root, {
+        limit: url.searchParams.get('limit') ?? undefined,
+        cursor: url.searchParams.get('cursor') ?? undefined,
+      });
+      return json(res, 200, runtime.publicDemo ? hideHostedLibraryLocations(page) : page);
     }
     const reportMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/verification$/);
     if (req.method === 'GET' && reportMatch) {
@@ -546,7 +586,8 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname.startsWith('/api/recordings/')) {
       const id = decodeURIComponent(url.pathname.slice('/api/recordings/'.length));
       if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
-      return json(res, 200, { ...(await inspect(join(root, id))), location: join(root, id) });
+      const recording = { ...(await inspect(join(root, id))), location: join(root, id) };
+      return json(res, 200, runtime.publicDemo ? hideHostedLocation(recording) : recording);
     }
     const match = url.pathname.match(/^\/api\/acquisitions\/([a-f0-9-]{36})(\/stop)?$/);
     if (match) {
@@ -558,19 +599,34 @@ const server = createServer(async (req, res) => {
       }
       if (req.method === 'GET' && !stop) {
         const metadata = await inspect(join(root, id));
-        return json(res, 200, { ...metadata, location: join(root, id) });
+        const recording = { ...metadata, location: join(root, id) };
+        return json(res, 200, runtime.publicDemo ? hideHostedLocation(recording) : recording);
       }
     }
     json(res, 404, { error: 'Operation or recording not found' });
   } catch (cause) {
-    const error = cause as Error & { code?: string; statusCode?: number };
+    const error = cause as Error & {
+      code?: string;
+      statusCode?: number;
+      fields?: Record<string, string>;
+      retryAfterSeconds?: number;
+    };
     const status =
       error.code === 'ENOENT'
         ? 404
         : error.statusCode || (error instanceof SyntaxError ? 400 : 500);
+    if (error.retryAfterSeconds) res.setHeader('Retry-After', String(error.retryAfterSeconds));
+    const publicMessage =
+      runtime.publicDemo && error.code
+        ? status === 404
+          ? 'Recording not found'
+          : 'Hosted storage operation failed'
+        : runtime.publicDemo && status >= 500 && status !== 507
+          ? 'Hosted operation failed'
+          : error.message;
     json(res, status, {
-      error: error.message,
-      ...(error instanceof ConfigurationError ? { fields: error.fields } : {}),
+      error: publicMessage,
+      ...(error instanceof ConfigurationError || error.fields ? { fields: error.fields } : {}),
     });
   }
 });

@@ -1,4 +1,5 @@
 import type { Settings } from '../core/contracts';
+import type { RuntimeInfo } from '../core/contracts';
 
 export type ConfigurationDraft = Record<
   | 'channels'
@@ -38,13 +39,17 @@ export function ConfigurationForm({
   disabled,
   onChange,
   onStart,
+  runtime,
 }: {
   draft: ConfigurationDraft;
   fields: Record<string, string>;
   disabled: boolean;
   onChange: (key: keyof ConfigurationDraft, value: string) => void;
   onStart: () => void;
+  runtime?: RuntimeInfo | null;
 }) {
+  const publicDemo = runtime?.mode === 'public-demo' ? runtime.limits : null;
+  const showDiagnostics = runtime === undefined || runtime?.mode === 'local';
   const aggregate = Number(draft.channels) * Number(draft.sampleRate);
   const inputClass =
     'w-full border border-line bg-background px-3 py-2.5 font-mono text-sm text-[#f0f0eb] focus:border-accent disabled:opacity-60 aria-invalid:border-[#ff9c89]';
@@ -93,9 +98,27 @@ export function ConfigurationForm({
               aria-invalid={Boolean(fields[key])}
               aria-describedby={`${key}-hint${fields[key] ? ` ${key}-error` : ''}`}
               className={inputClass}
+              min={key === 'seconds' && publicDemo ? publicDemo.minimumDurationSeconds : undefined}
+              max={
+                publicDemo
+                  ? key === 'channels'
+                    ? publicDemo.maximumChannels
+                    : key === 'sampleRate'
+                      ? publicDemo.maximumSampleRate
+                      : key === 'seconds'
+                        ? publicDemo.maximumDurationSeconds
+                        : undefined
+                  : undefined
+              }
             />
             <p id={`${key}-hint`} className="mt-2 text-[10px] leading-relaxed text-muted">
-              {hint}
+              {publicDemo && key === 'channels'
+                ? `1–${publicDemo.maximumChannels} channels · hosted limit`
+                : publicDemo && key === 'sampleRate'
+                  ? `Hz per channel · 1–${publicDemo.maximumSampleRate.toLocaleString('en-US')} hosted limit`
+                  : publicDemo && key === 'seconds'
+                    ? `${publicDemo.minimumDurationSeconds}–${publicDemo.maximumDurationSeconds} seconds · hosted limit`
+                    : hint}
             </p>
             {fields[key] && (
               <p id={`${key}-error`} className="mt-2 text-xs leading-relaxed text-[#ff9c89]">
@@ -105,46 +128,48 @@ export function ConfigurationForm({
           </div>
         ))}
       </fieldset>
-      <details className="mt-5 border-t border-line pt-4">
-        <summary className="cursor-pointer text-xs text-muted">Overload diagnostics</summary>
-        <p className="my-3 text-xs leading-relaxed text-muted">
-          Off by default. A temporary stall pauses disk writes once, then resumes automatically. The
-          source keeps running; a small buffer makes loss visible.
-        </p>
-        <fieldset disabled={disabled} className="grid grid-cols-2 gap-3">
-          {(
-            [
-              ['bufferBytes', 'Buffer budget', 'Bytes · 4,096–67,108,864'],
-              ['stallAfterSeconds', 'Stall after', 'Seconds after source start'],
-              ['stallForMs', 'Temporary stall', 'Milliseconds · 0 disables · max 5,000'],
-            ] as const
-          ).map(([key, label, hint]) => (
-            <div key={key} className={key === 'bufferBytes' ? 'col-span-2' : ''}>
-              <label htmlFor={key} className="mb-2 block text-xs text-muted">
-                {label}
-              </label>
-              <input
-                id={key}
-                type="number"
-                step={key === 'stallAfterSeconds' ? 'any' : '1'}
-                value={draft[key]}
-                onChange={(event) => onChange(key, event.target.value)}
-                aria-invalid={Boolean(fields[key])}
-                aria-describedby={`${key}-hint${fields[key] ? ` ${key}-error` : ''}`}
-                className={inputClass}
-              />
-              <p id={`${key}-hint`} className="mt-2 text-[10px] leading-relaxed text-muted">
-                {hint}
-              </p>
-              {fields[key] && (
-                <p id={`${key}-error`} className="mt-2 text-xs text-[#ff9c89]">
-                  {fields[key]}
+      {showDiagnostics && (
+        <details className="mt-5 border-t border-line pt-4">
+          <summary className="cursor-pointer text-xs text-muted">Overload diagnostics</summary>
+          <p className="my-3 text-xs leading-relaxed text-muted">
+            Off by default. A temporary stall pauses disk writes once, then resumes automatically.
+            The source keeps running; a small buffer makes loss visible.
+          </p>
+          <fieldset disabled={disabled} className="grid grid-cols-2 gap-3">
+            {(
+              [
+                ['bufferBytes', 'Buffer budget', 'Bytes · 4,096–67,108,864'],
+                ['stallAfterSeconds', 'Stall after', 'Seconds after source start'],
+                ['stallForMs', 'Temporary stall', 'Milliseconds · 0 disables · max 5,000'],
+              ] as const
+            ).map(([key, label, hint]) => (
+              <div key={key} className={key === 'bufferBytes' ? 'col-span-2' : ''}>
+                <label htmlFor={key} className="mb-2 block text-xs text-muted">
+                  {label}
+                </label>
+                <input
+                  id={key}
+                  type="number"
+                  step={key === 'stallAfterSeconds' ? 'any' : '1'}
+                  value={draft[key]}
+                  onChange={(event) => onChange(key, event.target.value)}
+                  aria-invalid={Boolean(fields[key])}
+                  aria-describedby={`${key}-hint${fields[key] ? ` ${key}-error` : ''}`}
+                  className={inputClass}
+                />
+                <p id={`${key}-hint`} className="mt-2 text-[10px] leading-relaxed text-muted">
+                  {hint}
                 </p>
-              )}
-            </div>
-          ))}
-        </fieldset>
-      </details>
+                {fields[key] && (
+                  <p id={`${key}-error`} className="mt-2 text-xs text-[#ff9c89]">
+                    {fields[key]}
+                  </p>
+                )}
+              </div>
+            ))}
+          </fieldset>
+        </details>
+      )}
       <div className="mt-5 flex items-center justify-between border-t border-line pt-4 text-xs text-muted">
         <span>Aggregate sample rate</span>
         <span>

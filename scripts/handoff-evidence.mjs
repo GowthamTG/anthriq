@@ -191,7 +191,10 @@ async function waitForApplication(port, child, timeoutMs = 60_000) {
 }
 
 export function assertApplicationStillRunning(child) {
-  if (child.exitCode !== null) throw new Error(`application exited early with ${child.exitCode}`);
+  if (child.exitCode !== null || child.signalCode !== null)
+    throw new Error(
+      `application exited early with ${child.signalCode ?? `code ${child.exitCode}`}`,
+    );
 }
 
 export function waitForChildClose(child, timeoutMs) {

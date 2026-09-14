@@ -230,7 +230,14 @@ test('retrieval checks independent float32 values in requested channel order', (
 });
 
 test('application startup and bounded shutdown failures cannot pass', async () => {
-  assert.throws(() => assertApplicationStillRunning({ exitCode: 7 }), /exited early with 7/);
+  assert.throws(
+    () => assertApplicationStillRunning({ exitCode: 7, signalCode: null }),
+    /exited early with code 7/,
+  );
+  assert.throws(
+    () => assertApplicationStillRunning({ exitCode: null, signalCode: 'SIGTERM' }),
+    /exited early with SIGTERM/,
+  );
   const child = new EventEmitter();
   child.exitCode = null;
   child.signalCode = null;

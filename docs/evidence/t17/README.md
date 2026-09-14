@@ -9,15 +9,15 @@ or the video binary.
 
 1. Follow the five-minute setup in the repository [README](../../../README.md).
 2. Watch the
-   [SCOPE T17 demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/scope-t17-demo.m4v).
+   [SCOPE T17 demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/Demo.mov).
 3. Inspect [`traceability.json`](traceability.json) for the complete requirement-to-evidence map.
 4. Inspect [`rehearsal.json`](rehearsal.json) for the exact clean-clone install, build, launch,
    test, and browser-free CLI result.
 5. Read the [submission checklist](submission-checklist.md) and
    [known limitations](known-limitations.md).
 
-The repository is private. A reviewer must be granted access by the owner before the repository or
-release asset will resolve; T17 does not grant unidentified users access.
+The repository is public, not private (see [known limitations](known-limitations.md)); the
+repository and release asset resolve without any owner-granted access.
 
 ## Reproduce the compact checks
 

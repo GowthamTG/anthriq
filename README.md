@@ -12,21 +12,20 @@ published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issu
 `ready-for-agent`.
 
 The approved [implementation ticket index](docs/ticket-plan.md) links 17 local-delivery tickets plus
-one optional hosting follow-up. **T01-T17 are complete:** the repository contains the full local
+one optional hosting follow-up. **T01-T18 are complete:** the repository contains the full local
 assessment implementation, automated checks, one-hour acquisition evidence, long-recording
-retrieval/export/playback evidence, a clean-clone rehearsal, and the final demonstration. Optional
-public hosting remains separate T18 work and does not gate this handoff.
+retrieval/export/playback evidence, a clean-clone rehearsal, and the final demonstration.
 
-T18 adds an explicit, resource-bounded public-demo mode suitable for a single Railway service with a
-persistent volume. No public URL is claimed until the deployed capture, playback, verification,
-restart persistence, and free-tier limits have been measured. See the
-[public hosting guide](docs/hosting.md).
+T18 adds an explicit, resource-bounded public-demo mode, deployed and verified on Railway at
+[anthriq-production.up.railway.app](https://anthriq-production.up.railway.app) — a live, shared,
+best-effort demonstration on top of, not a replacement for, the local workflow measured below. See
+the [public hosting guide](docs/hosting.md) and the [T18 evidence](docs/evidence/t18/README.md).
 
 Start with the
-[narrated T17 demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/scope-t17-demo.m4v),
+[narrated T17 demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/Demo.mov),
 then use the [complete assessment traceability](docs/evidence/t17/traceability.json) to map every
 mandatory requirement and A01-A30 to implementation, tests, and compact evidence. This repository is
-private; the owner must grant the named reviewer access before either link resolves.
+public; no reviewer access grant is required.
 
 ## Five-minute reviewer path
 
@@ -465,18 +464,19 @@ storage layout. See the T18 hosting guide for the optional assessment-window pub
 ## Demonstration and submission
 
 The
-[5-7 minute owner-narrated demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/scope-t17-demo.m4v)
+[owner-narrated demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/Demo.mov)
 shows real configuration, capture/metrics, finalization, retrieval/export, playback controls, clean
-verification, and isolated corruption detection. The
+verification, and isolated corruption detection; its actual duration and resolution exceed the
+originally targeted 5-7 minutes and 1920x1080, as recorded in the
+[known-limitations statement](docs/evidence/t17/known-limitations.md). The
 [walkthrough and locked narration](docs/evidence/t17/demo-script.md),
 [artifact manifest](docs/evidence/t17/video.json),
 [submission checklist](docs/evidence/t17/submission-checklist.md), and
 [complete traceability](docs/evidence/t17/traceability.json) make every claim reviewable.
 
-The primary deliverable is this private GitHub repository. An identified reviewer needs repository
-access to clone it or download its private release; the owner must grant that access explicitly. No
-credential, recording binary, or assessment PDF is committed. Public hosting is optional and does
-not replace the local Node.js process-and-disk workflow.
+The primary deliverable is this public GitHub repository; no reviewer access grant is required to
+clone it or download its release. No credential, recording binary, or assessment PDF is committed.
+Public hosting (T18) is optional and does not replace the local Node.js process-and-disk workflow.
 
 ## Engineering skills
 

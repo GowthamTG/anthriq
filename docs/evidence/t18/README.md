@@ -7,8 +7,11 @@ Status: published. Live at https://anthriq-production.up.railway.app.
 - GitHub issue #18 (T17) was confirmed closed on September 15, 2026.
 - GitHub issue #19 (T18) was confirmed open with `ready-for-agent`.
 - Implementation commit: `2dc0855` on `codex/t18-public-demo`.
-- Deployed commit: `bb6af6d` on `codex/t18-public-demo` (merged to `main`).
-- Pull request: [#55](https://github.com/GowthamTG/anthriq/pull/55).
+- Pull request: [#55](https://github.com/GowthamTG/anthriq/pull/55), squash-merged as `28a3b58` on
+  `main`.
+- The Railway service was verified against `codex/t18-public-demo` (commit `bb6af6d`/`8101d42`)
+  before merge, then its deployment branch was switched to `main` after merge; issue #19 auto-closed
+  on merge.
 
 The production code provides the real hosted acquisition pipeline with explicit caps, rate limits,
 temporary-bundle rotation, diagnostic restrictions, path redaction, runtime disclosure, and a
@@ -38,11 +41,15 @@ the same recording root across two server processes.
 The Railway account's free trial had previously expired; the account was upgraded to the Railway
 Hobby plan (paid, $5/month minimum usage) before this deployment, and that upgrade is reflected in
 Railway's own billing history. With the plan active, the service was created from
-`GowthamTG/anthriq` on `codex/t18-public-demo` and configured per `docs/hosting.md`: build command
-`npm ci && npm run build`, start command `npm start`, health check `/healthz`, a generated public
-domain, a 0.5 GB-limited persistent volume mounted at `/data`, `SCOPE_DEMO_MODE=public`,
-`SCOPE_HOST=0.0.0.0`, `SCOPE_RECORDINGS_DIR=/data/recordings`, and Railway Serverless sleep-on-idle
-enabled.
+`GowthamTG/anthriq` and configured per `docs/hosting.md`: build command `npm ci && npm run build`,
+start command `npm start`, health check `/healthz`, a generated public domain, a 0.5 GB-limited
+persistent volume mounted at `/data`, `SCOPE_DEMO_MODE=public`, `SCOPE_HOST=0.0.0.0`,
+`SCOPE_RECORDINGS_DIR=/data/recordings`, and Railway Serverless sleep-on-idle enabled. The
+deployment branch now tracks `main`. The replica's resource ceiling is explicitly capped at 0.5 vCPU
+/ 0.5 GB memory (Railway's minimum slider values) rather than left at the Hobby plan's default 8
+vCPU / 8 GB maximum — a full-load 32-channel, 4,000 Hz, 5-second capture peaks at under 100 MiB, so
+the 0.5 GB ceiling leaves roughly 5x headroom while still matching the documented resource target
+and failing the container fast instead of silently allowing runaway growth.
 
 | Gate                                                            | Result                                                                                                                                              |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -57,6 +64,7 @@ enabled.
 | Hosted disclosure banner and disposable-scenario denial visible | PASS                                                                                                                                                |
 | Hosted response path redaction                                  | PASS — no absolute filesystem paths shown                                                                                                           |
 | Wake time from a serverless sleep                               | Not independently timed this session (the service was kept warm throughout testing); the Serverless toggle is confirmed enabled in Railway settings |
+| Full-load capture under the 0.5 vCPU / 0.5 GB resource cap      | PASS — 5 s, 32 channels, 4,000 Hz, 0 lost frames, peak RSS ~95 MiB                                                                                  |
 
 GitHub Actions `smoke` and the Railway deploy check both report `SUCCESS` on the deployed commit.
 `Demo.mov` and the T17 local evidence remain untouched and authoritative for the reproducible local

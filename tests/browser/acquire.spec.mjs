@@ -105,7 +105,7 @@ test('independent observing tabs keep bounded session previews while acquisition
   }
 });
 
-test('evidence mode exposes bounded observer diagnostics and evicts a stalled SSE reader', async () => {
+test('evidence mode exposes bounded observer diagnostics and cleans up a disconnected reader', async () => {
   const root = await mkdtemp(join(tmpdir(), 'scope-observer-diagnostics-'));
   const server = spawn(process.execPath, ['server.ts'], {
     env: {
@@ -135,17 +135,29 @@ test('evidence mode exposes bounded observer diagnostics and evicts a stalled SS
     await fetch('http://127.0.0.1:3108/api/acquisitions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seconds: 4 }),
+      body: JSON.stringify({ seconds: 1 }),
     });
     await expect
       .poll(async () => (await fetch('http://127.0.0.1:3108/api/diagnostics/observers')).json(), {
-        timeout: 7000,
+        timeout: 3000,
       })
-      .toMatchObject({ activeClients: 0, backpressureDisconnects: 1 });
+      .toMatchObject({ activeClients: 1 });
     const diagnostics = await (
       await fetch('http://127.0.0.1:3108/api/diagnostics/observers')
     ).json();
+    expect(diagnostics.limits).toMatchObject({
+      clients: 8,
+      clientBufferBytes: 65536,
+      drainMs: 2000,
+    });
     expect(diagnostics.maxWritableLengthBytes).toBeLessThanOrEqual(65536);
+    request.destroy();
+    request = undefined;
+    await expect
+      .poll(async () => (await fetch('http://127.0.0.1:3108/api/diagnostics/observers')).json(), {
+        timeout: 2500,
+      })
+      .toMatchObject({ activeClients: 0 });
   } finally {
     request?.destroy();
     server.kill('SIGTERM');

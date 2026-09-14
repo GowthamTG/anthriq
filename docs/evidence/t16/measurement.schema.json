@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["type", "operation", "elapsedMs", "rssBytes", "worker"],
+  "properties": {
+    "type": { "const": "measurement" },
+    "operation": { "type": "string" },
+    "elapsedMs": { "type": "number", "minimum": 0 },
+    "rssBytes": { "type": "integer", "minimum": 1 },
+    "rows": { "type": "integer", "minimum": 0 },
+    "worker": { "type": "string" }
+  },
+  "additionalProperties": false
+}

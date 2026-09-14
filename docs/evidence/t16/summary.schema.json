@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "format",
+    "createdAt",
+    "result",
+    "workload",
+    "environment",
+    "t15Reference",
+    "recording",
+    "workloadConfiguration",
+    "units",
+    "bounds",
+    "expectedAmplification",
+    "retrieval",
+    "export",
+    "playback",
+    "verification"
+  ],
+  "properties": {
+    "format": { "const": "SCOPE-LONG-RECORDING-EVIDENCE/1" },
+    "createdAt": { "type": "string" },
+    "result": { "const": "PASS" },
+    "workload": {
+      "type": "object",
+      "required": ["declaration", "quietWindow", "statement"]
+    },
+    "environment": { "type": "object", "required": ["platform", "node"] },
+    "t15Reference": {
+      "type": "object",
+      "required": [
+        "evidence",
+        "verificationEvidence",
+        "recordedEnvironment",
+        "identityMatched",
+        "platformContext"
+      ]
+    },
+    "recording": {
+      "type": "object",
+      "required": [
+        "id",
+        "channels",
+        "sampleRateFramesPerSecond",
+        "seed",
+        "expectedFrames",
+        "frameFileBytes",
+        "status",
+        "checkedFiles"
+      ]
+    },
+    "workloadConfiguration": { "type": "object" },
+    "units": { "type": "object" },
+    "bounds": {
+      "type": "object",
+      "required": ["rangeReadBytes", "playback", "exportRetention", "measurementHistory"]
+    },
+    "expectedAmplification": {
+      "type": "object",
+      "required": ["value", "formula", "excludes"]
+    },
+    "retrieval": { "type": "array", "minItems": 6, "maxItems": 6 },
+    "export": { "type": "object", "required": ["rows", "outputBytes", "digestSha256"] },
+    "playback": {
+      "type": "object",
+      "required": ["pacingTolerance", "cases", "transitions", "slowSink"]
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "recordsScanned",
+        "bytesScanned",
+        "elapsedMs",
+        "finalRssBytes",
+        "peakRssBytes",
+        "discrepancySamples",
+        "formatErrors",
+        "result"
+      ]
+    }
+  }
+}

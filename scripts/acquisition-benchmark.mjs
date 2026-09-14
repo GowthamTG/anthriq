@@ -57,10 +57,10 @@ async function latestMetric(directory) {
   }
 }
 
-function memoryWindow(rows, start, end, label) {
+function memoryWindow(rows, start, end, label, includeTerminal = false) {
   const selected = rows.filter((row) => {
     const elapsed = row.generator?.elapsedSeconds ?? row.elapsedSeconds;
-    return elapsed >= start && elapsed < end;
+    return elapsed >= start && (elapsed < end || includeTerminal);
   });
   assert.ok(selected.length > 0, `${label} memory window has no measurements`);
   const stats = (values) => ({
@@ -80,18 +80,18 @@ function memoryWindow(rows, start, end, label) {
   };
 }
 
-function windows(rows, seconds) {
+export function windows(rows, seconds) {
   if (seconds >= 900)
     return [
       memoryWindow(rows, 0, 300, 'warmup'),
       memoryWindow(rows, seconds / 2 - 150, seconds / 2 + 150, 'middle'),
-      memoryWindow(rows, seconds - 300, seconds, 'late'),
+      memoryWindow(rows, seconds - 300, seconds, 'late', true),
     ];
   const width = seconds / 3;
   return [
     memoryWindow(rows, 0, width, 'warmup'),
     memoryWindow(rows, width, width * 2, 'middle'),
-    memoryWindow(rows, width * 2, seconds, 'late'),
+    memoryWindow(rows, width * 2, seconds, 'late', true),
   ];
 }
 

@@ -196,18 +196,36 @@ npm run cli -- playback recordings/example --output jsonl
 Playback accepts completed recordings with a confirmed expected extent, including recordings that
 declare loss. It does not require an integrity PASS. Each full-data batch is awaited before position
 is committed, is capped at 256 frames and approximately 64 KiB, and each scheduler turn examines at
-most 4,096 physical observations. The browser preview retains at most 256 decimated points from the
-first four selected channels. uPlot is loaded only with the recording-detail chart and updates that
+most 4,096 physical observations. The browser preview retains at most 256 decimated points from up
+to four selected channels at a time; Previous and Next move that bounded chart window through the
+full playback selection. uPlot is loaded only with the recording-detail chart and updates that
 bounded data through one retained chart instance.
+
+The recording detail also shows every recorded channel in one stacked-lane persisted overview. It
+uniformly samples at most 64 frames and 2,048 scalar values across the confirmed recording extent,
+independently of playback-output and four-channel detail selections. A single Canvas renders all
+lanes in the final recording-detail section while the detailed uPlot trace remains the precise
+bounded playback view. A fixed label gutter keeps every two-digit channel identity readable on
+narrow screens.
 
 ## Watch live acquisition
 
 During acquisition, the Acquire view receives a bounded recorder-side live preview, never the full
-sample stream. It shows a two-second rolling window with at most 256 original-index buckets and
-selected-channel min/max values calculated only after the corresponding frames are written. Each
-browser session has its own one-to-four channel selection; changing it clears only that session's
-display and cannot change recording, credits, or persisted frames. Preview decimation or skipped
-screen updates are not recording loss.
+sample stream. It shows a two-second rolling detail and a browser-local whole-acquisition overview;
+each retains at most 256 original-index min/max buckets calculated only after the corresponding
+frames are written. The overview adaptively increases its decimation as the acquisition grows. Each
+browser session has its own one-to-four channel selection, and reconnect attempts preserve that
+selection. The last confirmed trace remains visible during a reconnect, while intervals the browser
+did not observe are explicitly shown as preview gaps. A reload shows the full confirmed timeline but
+leaves its unavailable prefix blank. Changing channels clears only that session's display and cannot
+change recording, credits, or persisted frames. Preview gaps, decimation, and skipped screen updates
+are not recording loss.
+
+The whole-acquisition chart follows its newest data by default. Scrolling left pauses that behavior
+for inspection; **Jump to latest** or the End key restores it. A separate stacked-lane persisted
+overview shows every configured channel through bounded, uniformly sampled reads from the readable
+recording prefix. It appears below the whole-acquisition chart. Those reads stay outside SSE and
+never widen the four-channel recorder preview.
 
 ## Verify a recording
 

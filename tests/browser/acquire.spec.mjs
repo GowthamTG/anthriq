@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import http from 'node:http';
+import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -31,6 +32,8 @@ test('capture, reload, stop, and inspect a real recording', async ({ page, reque
   await expect(page.getByText('Integrity not verified', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Inspect recording' }).click();
   await expect(page.getByRole('heading', { name: 'Recording details' })).toBeVisible();
+  await expect(page.getByTestId('live-all-channel-panel')).toHaveCount(1);
+  await expect(page.getByTestId('playback-all-channel-panel')).toHaveCount(0);
   await expect(page.getByTestId('format')).toHaveText('SCOPE/1');
   await expect(page.getByTestId('expected-frames')).toHaveText(
     await page.getByTestId('saved-frames').innerText(),
@@ -45,7 +48,7 @@ test('independent observing tabs keep bounded session previews while acquisition
   await page.goto('/');
   await page.getByRole('button', { name: 'Start acquisition' }).click();
   await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
-  await expect(page.getByRole('img', { name: 'Live acquired signal trace' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Live rolling signal detail' })).toBeVisible();
   const firstSession = await page
     .locator('[data-browser-session]')
     .getAttribute('data-browser-session');
@@ -68,7 +71,7 @@ test('independent observing tabs keep bounded session previews while acquisition
   const observer = await context.newPage();
   try {
     await observer.goto('/');
-    await expect(observer.getByRole('img', { name: 'Live acquired signal trace' })).toBeVisible();
+    await expect(observer.getByRole('img', { name: 'Live rolling signal detail' })).toBeVisible();
     const secondSession = await observer
       .locator('[data-browser-session]')
       .getAttribute('data-browser-session');
@@ -76,8 +79,8 @@ test('independent observing tabs keep bounded session previews while acquisition
     await expect(observer.getByText('Show at most four live preview channels at once')).toHaveCount(
       0,
     );
-    await expect(page.getByText(/Channel 0:/)).toBeVisible();
-    await expect(observer.getByText(/Channel 1:/)).toBeVisible();
+    await expect(page.getByText(/Channel 0:/).first()).toBeVisible();
+    await expect(observer.getByText(/Channel 1:/).first()).toBeVisible();
     await expect
       .poll(async () => {
         const state = await (await request.get(`/api/state?clientId=${secondSession}`)).json();
@@ -103,6 +106,330 @@ test('independent observing tabs keep bounded session previews while acquisition
   } finally {
     await context.close().catch(() => {});
   }
+});
+
+test('active all-channel overview requires prefix acknowledgement and stays bounded', async ({
+  page,
+  request,
+}) => {
+  await page.route('**/channel-overview*', async (route) => {
+    if (!route.request().url().includes('prefix=true'))
+      return route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Final overview temporarily unavailable' }),
+      });
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    return route.continue();
+  });
+  await page.goto('/');
+  const started = await (
+    await request.post('/api/acquisitions', {
+      data: { channels: 32, sampleRate: 1000, seconds: 2, displayName: 'All channels' },
+    })
+  ).json();
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+  expect((await request.get(`/api/recordings/${started.id}/channel-overview`)).status()).toBe(400);
+  const response = await request.get(`/api/recordings/${started.id}/channel-overview?prefix=true`);
+  expect(response.status()).toBe(200);
+  const overview = await response.json();
+  expect(overview.channels).toEqual(Array.from({ length: 32 }, (_, channel) => channel));
+  expect(overview.observations.length * overview.channels.length).toBeLessThanOrEqual(2048);
+  expect(overview.observations.at(-1).index).toBeLessThan(overview.confirmedFrames);
+  const allChannelPanel = page.getByTestId('live-all-channel-panel');
+  const [wholeAcquisitionBox, allChannelPanelBox] = await Promise.all([
+    page.getByTestId('live-overview-trace').boundingBox(),
+    allChannelPanel.boundingBox(),
+  ]);
+  expect(wholeAcquisitionBox).not.toBeNull();
+  expect(allChannelPanelBox).not.toBeNull();
+  expect(allChannelPanelBox.y).toBeGreaterThan(wholeAcquisitionBox.y + wholeAcquisitionBox.height);
+  await expect(page.getByRole('img', { name: 'All configured channel overview' })).toBeVisible();
+  await expect(page.getByTestId('live-all-channel-context')).toContainText(
+    'Normalized amplitude per lane',
+  );
+  await expect(page.getByTestId('live-all-channel-lanes').locator('[data-channel]')).toHaveCount(
+    32,
+  );
+  await expect(
+    page.getByTestId('live-all-channel-labels').locator('[data-channel-label]'),
+  ).toHaveCount(32);
+  await expect(
+    page.getByTestId('live-all-channel-labels').locator('[data-channel-label]').first(),
+  ).toHaveText('Ch 00');
+  await expect(
+    page.getByTestId('live-all-channel-labels').locator('[data-channel-label]').last(),
+  ).toHaveText('Ch 31');
+  await expect(page.getByTestId('live-all-channel-canvas')).toHaveCount(1);
+  if (process.env.SCOPE_CAPTURE_ALL_CHANNEL_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'test-results', 'all-channels-live-desktop.png'),
+      fullPage: true,
+    });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  expect(
+    await page.getByTestId('live-all-channel-labels').evaluate((labels) => {
+      const bounds = labels.getBoundingClientRect();
+      return [...labels.querySelectorAll('[data-channel-label]')].every((label) => {
+        const box = label.getBoundingClientRect();
+        return box.left >= bounds.left && box.right <= bounds.right;
+      });
+    }),
+  ).toBe(true);
+  if (process.env.SCOPE_CAPTURE_ALL_CHANNEL_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'test-results', 'all-channels-live-mobile.png'),
+      fullPage: true,
+    });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const session = await page.locator('[data-browser-session]').getAttribute('data-browser-session');
+  await expect
+    .poll(async () => {
+      const state = await (await request.get(`/api/state?clientId=${session}`)).json();
+      return state.preview?.channels;
+    })
+    .toEqual([0, 1, 2, 3]);
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Completed', { timeout: 5000 });
+  await expect(page.getByText(/persisted all-channel overview may be stale/i)).toBeVisible();
+  await expect(page.getByRole('img', { name: 'All configured channel overview' })).toBeVisible();
+  const inspection = await (await request.get(`/api/acquisitions/${started.id}`)).json();
+  expect(inspection.recordedFrames).toBe(inspection.expectedFrames);
+  expect(inspection.droppedFrames).toBe(0);
+});
+
+test('live trace preserves selected channels and marks a preview gap across reconnect', async ({
+  page,
+  context,
+  request,
+}) => {
+  await page.goto('/');
+  const started = await (
+    await request.post('/api/acquisitions', {
+      data: { channels: 4, sampleRate: 1000, seconds: 4, displayName: 'Reconnect continuity' },
+    })
+  ).json();
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+  const session = await page.locator('[data-browser-session]').getAttribute('data-browser-session');
+  await page.getByLabel('Ch 0').click();
+  await expect
+    .poll(async () => {
+      const state = await (await request.get(`/api/state?clientId=${session}`)).json();
+      return state.preview?.channels.join(',');
+    })
+    .toBe('1,2,3');
+  await expect(page.getByRole('img', { name: 'Live rolling signal detail' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Whole acquisition signal overview' })).toBeVisible();
+  await expect(page.getByTestId('live-rolling-latest-frame')).not.toContainText('Not available');
+  const latestBefore = Number(
+    (await page.getByTestId('live-rolling-latest-frame').innerText()).replaceAll(/\D/g, ''),
+  );
+  const gapsBefore = Number(
+    await page.getByTestId('live-preview-gaps').getAttribute('data-preview-gap-count'),
+  );
+  const stateBefore = await (await request.get('/api/state')).json();
+
+  await context.setOffline(true);
+  await expect(page.getByText('Connection unavailable.')).toBeVisible();
+  await expect(page.getByTestId('live-rolling-latest-frame')).not.toContainText('Not available');
+  await new Promise((resolve) => setTimeout(resolve, 650));
+  const stateWhileOffline = await (await request.get('/api/state')).json();
+  expect(stateWhileOffline.metrics.recordedFrames).toBeGreaterThan(
+    stateBefore.metrics.recordedFrames,
+  );
+
+  await context.setOffline(false);
+  await expect(page.getByText('Local connection')).toBeVisible({ timeout: 10000 });
+  await expect
+    .poll(async () => {
+      const state = await (await request.get(`/api/state?clientId=${session}`)).json();
+      return state.preview?.channels.join(',');
+    })
+    .toBe('1,2,3');
+  await expect(page.getByTestId('live-rolling-latest-frame')).not.toHaveText(
+    `Latest original frame: ${latestBefore}`,
+  );
+  await expect(page.getByTestId('live-preview-gaps')).toContainText('Preview not observed');
+  await expect
+    .poll(async () =>
+      Number(await page.getByTestId('live-preview-gaps').getAttribute('data-preview-gap-count')),
+    )
+    .toBeGreaterThan(gapsBefore);
+  await expect(page.getByTestId('live-overview-visible-window')).toContainText('frames 0-');
+  await expect(page.getByTestId('live-rolling-trace').locator('.uplot')).toHaveCount(1);
+  await expect(page.getByTestId('live-overview-trace').locator('.uplot')).toHaveCount(1);
+  if (process.env.SCOPE_CAPTURE_RECONNECT_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'test-results', 'reconnect-desktop.png'),
+      fullPage: true,
+    });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.getByRole('checkbox', { name: 'Ch 1', exact: true }).focus();
+  await expect(page.getByRole('checkbox', { name: 'Ch 1', exact: true })).toBeFocused();
+  await expect(page.getByRole('img', { name: 'Live rolling signal detail' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Whole acquisition signal overview' })).toBeVisible();
+  if (process.env.SCOPE_CAPTURE_RECONNECT_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'test-results', 'reconnect-mobile.png'),
+      fullPage: true,
+    });
+
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Completed', { timeout: 10000 });
+  const inspection = await (await request.get(`/api/acquisitions/${started.id}`)).json();
+  expect(inspection.recordedFrames).toBe(inspection.expectedFrames);
+  expect(inspection.droppedFrames).toBe(0);
+  await expect(page.getByTestId('live-overview-visible-window')).toHaveText(
+    `Visible window: frames 0-${(inspection.recordedFrames - 1).toLocaleString('en-US')}`,
+  );
+  const rollingWindow = await page.getByTestId('live-rolling-visible-window').innerText();
+  const rollingBounds = rollingWindow.match(/frames ([\d,]+)-([\d,]+)/);
+  expect(rollingBounds).not.toBeNull();
+  const rollingStart = Number(rollingBounds[1].replaceAll(',', ''));
+  const rollingEnd = Number(rollingBounds[2].replaceAll(',', ''));
+  expect(rollingEnd - rollingStart).toBe(inspection.sampleRate * 2 - 1);
+
+  const overviewScroll = page.getByTestId('live-overview-scroll');
+  await expect(overviewScroll).toBeVisible();
+  expect(
+    await overviewScroll.evaluate((element) => element.scrollWidth > element.clientWidth),
+  ).toBe(true);
+  await overviewScroll.focus();
+  await expect(overviewScroll).toBeFocused();
+  await overviewScroll.press('End');
+  await expect
+    .poll(() => overviewScroll.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
+});
+
+test('reloaded acquisition shows its full confirmed extent and an honest unavailable prefix', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/');
+  await request.post('/api/acquisitions', {
+    data: { channels: 4, sampleRate: 1000, seconds: 3, displayName: 'Reloaded overview' },
+  });
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+  await expect
+    .poll(async () => (await (await request.get('/api/state')).json()).metrics?.recordedFrames ?? 0)
+    .toBeGreaterThan(400);
+
+  await page.reload();
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+  await expect(page.getByRole('img', { name: 'Whole acquisition signal overview' })).toBeVisible();
+  await expect(page.getByTestId('live-overview-visible-window')).toContainText('frames 0-');
+  await expect
+    .poll(async () =>
+      Number(await page.getByTestId('live-preview-gaps').getAttribute('data-preview-gap-count')),
+    )
+    .toBeGreaterThan(0);
+  await expect(page.getByTestId('live-preview-gaps')).toContainText('Preview not observed');
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Completed', { timeout: 10000 });
+});
+
+test('whole-acquisition scrolling follows latest until the user inspects history', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/');
+  const start = await request.post('/api/acquisitions', {
+    data: { channels: 4, sampleRate: 1000, seconds: 6, displayName: 'Latest follow' },
+  });
+  const acquisition = await start.json();
+  try {
+    await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+    const scroll = page.getByTestId('live-overview-scroll');
+    await expect
+      .poll(() =>
+        scroll.evaluate((element) => ({
+          client: element.clientWidth,
+          width: element.scrollWidth,
+        })),
+      )
+      .toMatchObject({ width: expect.any(Number) });
+    await expect
+      .poll(() => scroll.evaluate((element) => element.scrollWidth > element.clientWidth))
+      .toBe(true);
+    await expect
+      .poll(() =>
+        scroll.evaluate(
+          (element) =>
+            Math.abs(element.scrollLeft - (element.scrollWidth - element.clientWidth)) < 3,
+        ),
+      )
+      .toBe(true);
+
+    await scroll.focus();
+    await scroll.press('Home');
+    await expect(page.getByRole('button', { name: 'Jump to latest data' })).toBeVisible();
+    await page.waitForTimeout(700);
+    expect(await scroll.evaluate((element) => element.scrollLeft)).toBe(0);
+
+    await scroll.press('End');
+    await expect
+      .poll(() =>
+        scroll.evaluate(
+          (element) =>
+            Math.abs(element.scrollLeft - (element.scrollWidth - element.clientWidth)) < 3,
+        ),
+      )
+      .toBe(true);
+    await expect(page.getByRole('button', { name: 'Jump to latest data' })).toHaveCount(0);
+    await scroll.press('ArrowLeft');
+    await expect(page.getByRole('button', { name: 'Jump to latest data' })).toBeVisible();
+    await page.getByRole('button', { name: 'Jump to latest data' }).click();
+    await expect(page.getByRole('button', { name: 'Jump to latest data' })).toHaveCount(0);
+
+    const gapText = page.getByTestId('live-preview-gaps');
+    const channelPanel = page.getByTestId('live-chart-channel-panel');
+    const [gapBox, panelBox] = await Promise.all([
+      gapText.boundingBox(),
+      channelPanel.boundingBox(),
+    ]);
+    expect(gapBox).not.toBeNull();
+    expect(panelBox).not.toBeNull();
+    expect(panelBox.y - (gapBox.y + gapBox.height)).toBeGreaterThanOrEqual(24);
+    await page.getByRole('button', { name: 'Stop acquisition' }).click();
+    await expect(page.getByTestId('acquisition-state')).toHaveText('Completed');
+    await scroll.focus();
+    await scroll.press('Home');
+    await expect(page.getByRole('button', { name: 'Jump to latest data' })).toBeVisible();
+    await request.post('/api/acquisitions', {
+      data: { channels: 4, sampleRate: 1000, seconds: 1, displayName: 'Follow reset' },
+    });
+    await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+    await expect(page.getByRole('button', { name: 'Jump to latest data' })).toHaveCount(0);
+    await expect(page.getByTestId('acquisition-state')).toHaveText('Completed', { timeout: 5000 });
+  } finally {
+    await request.post(`/api/acquisitions/${acquisition.id}/stop`).catch(() => undefined);
+  }
+});
+
+test('live chart channel paging reaches every configured channel without widening preview payloads', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/');
+  await request.post('/api/acquisitions', {
+    data: { channels: 8, sampleRate: 100, seconds: 1, displayName: 'Channel paging' },
+  });
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
+  const session = await page.locator('[data-browser-session]').getAttribute('data-browser-session');
+  await expect(page.getByTestId('live-chart-channels')).toContainText('Ch 0–Ch 3');
+
+  await page.getByRole('button', { name: 'Next trace group' }).click();
+  await expect(page.getByTestId('live-chart-channels')).toContainText('Ch 4–Ch 7');
+  await expect
+    .poll(async () => {
+      const snapshot = await (await request.get(`/api/state?clientId=${session}`)).json();
+      return snapshot.preview?.channels;
+    })
+    .toEqual([4, 5, 6, 7]);
+
+  await page.getByRole('button', { name: 'Previous trace group' }).click();
+  await expect(page.getByTestId('live-chart-channels')).toContainText('Ch 0–Ch 3');
+  await expect(page.getByTestId('acquisition-state')).toHaveText('Completed', { timeout: 5000 });
 });
 
 test('evidence mode exposes bounded observer diagnostics and cleans up a disconnected reader', async () => {
@@ -158,6 +485,34 @@ test('evidence mode exposes bounded observer diagnostics and cleans up a disconn
         timeout: 2500,
       })
       .toMatchObject({ activeClients: 0 });
+
+    // A browser can tear down an EventSource as soon as its response headers arrive.
+    // Repeating that boundary must not leave observer slots occupied by closed sockets.
+    await Promise.all(
+      Array.from(
+        { length: 24 },
+        (_, index) =>
+          new Promise((resolve) => {
+            const socket = net.createConnection(3108, '127.0.0.1', () => {
+              socket.write(
+                `GET /api/events?clientId=short-lived-${index}&channels=0,1,2,3 HTTP/1.1\r\nHost: 127.0.0.1:3108\r\nConnection: close\r\n\r\n`,
+                () => socket.destroy(),
+              );
+            });
+            socket.on('close', resolve);
+            socket.on('error', resolve);
+          }),
+      ),
+    );
+    await expect
+      .poll(async () => (await fetch('http://127.0.0.1:3108/api/diagnostics/observers')).json(), {
+        timeout: 2500,
+      })
+      .toMatchObject({ activeClients: 0 });
+    expect(
+      (await fetch('http://127.0.0.1:3108/api/events?clientId=after-churn&channels=0,1,2,3'))
+        .status,
+    ).toBe(200);
   } finally {
     request?.destroy();
     server.kill('SIGTERM');

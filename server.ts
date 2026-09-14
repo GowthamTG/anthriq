@@ -4,6 +4,7 @@ import { resolve, join } from 'node:path';
 import next from 'next';
 import { Acquisition } from './core/acquisition.ts';
 import {
+  allChannelOverview,
   inspect,
   parseChannelList,
   previewFrames,
@@ -296,13 +297,6 @@ const server = createServer(async (req, res) => {
           observerDiagnostics.replacements++;
           existing.res.destroy();
         }
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      });
-      res.flushHeaders();
       const client: EventClient = {
         res,
         revision: -1,
@@ -310,16 +304,34 @@ const server = createServer(async (req, res) => {
         draining: false,
         drainingSince: 0,
       };
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        if (!clients.delete(client)) return;
+        observerDiagnostics.closed++;
+        if (clientId && ![...clients].some((other) => other.clientId === clientId))
+          acquisition.unsubscribePreview(clientId);
+      };
+      // Install lifecycle handlers before flushing headers. A browser may close an
+      // EventSource immediately after seeing the response, including during navigation.
+      res.once('close', cleanup);
+      req.once('aborted', cleanup);
       clients.add(client);
       observerDiagnostics.opened++;
       observerDiagnostics.maxClients = Math.max(observerDiagnostics.maxClients, clients.size);
       if (clientId) acquisition.subscribePreview(clientId, selected);
-      res.on('close', () => {
-        clients.delete(client);
-        observerDiagnostics.closed++;
-        if (clientId && ![...clients].some((other) => other.clientId === clientId))
-          acquisition.unsubscribePreview(clientId);
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
       });
+      res.flushHeaders();
+      if (req.aborted || res.destroyed) {
+        cleanup();
+        return;
+      }
       event(client);
       return;
     }
@@ -387,7 +399,7 @@ const server = createServer(async (req, res) => {
       )
         state = await playback.control(command.recordingId, command as PlaybackControlCommand);
       else if (
-        command.action === 'channels' &&
+        (command.action === 'channels' || command.action === 'preview-channels') &&
         exact('action', 'recordingId', 'channels') &&
         Array.isArray(command.channels) &&
         command.channels.every((channel) => typeof channel === 'number')
@@ -474,6 +486,20 @@ const server = createServer(async (req, res) => {
       const id = decodeURIComponent(previewMatch[1]);
       if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
       return json(res, 200, await previewFrames(join(root, id), rangeQuery(url)));
+    }
+    const overviewMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/channel-overview$/);
+    if (req.method === 'GET' && overviewMatch) {
+      const id = decodeURIComponent(overviewMatch[1]);
+      if (!recordingId(id)) return json(res, 404, { error: 'Recording not found' });
+      for (const key of url.searchParams.keys())
+        if (key !== 'prefix' || url.searchParams.getAll(key).length !== 1)
+          throw Object.assign(new Error(`Invalid overview query parameter: ${key}`), {
+            statusCode: 400,
+          });
+      const rawPrefix = url.searchParams.get('prefix');
+      if (rawPrefix !== null && !['true', 'false'].includes(rawPrefix))
+        throw Object.assign(new Error('prefix must be true or false'), { statusCode: 400 });
+      return json(res, 200, await allChannelOverview(join(root, id), rawPrefix === 'true'));
     }
     const retrieveMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/retrieve$/);
     if (req.method === 'GET' && retrieveMatch) {

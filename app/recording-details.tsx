@@ -1,6 +1,11 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import type { RecordingInspection } from '../core/contracts';
+import { AllChannelTrace } from './all-channel-trace';
 import { PlaybackPanel } from './playback-panel';
 import { RangeInspector } from './range-inspector';
+import { useAllChannelOverview } from './use-all-channel-overview';
 import { VerificationStatusText } from './verification-status';
 
 const number = (value: number | null | undefined) =>
@@ -10,7 +15,27 @@ const timestamp = (value: string | undefined) =>
     ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'medium' })
     : 'Unknown';
 
-export function RecordingDetails({ details }: { details: RecordingInspection }) {
+export function RecordingDetails({
+  details,
+  showAllChannelOverview = true,
+}: {
+  details: RecordingInspection;
+  showAllChannelOverview?: boolean;
+}) {
+  const playable = details.status === 'completed' && details.expectedFrames !== null;
+  const [playbackPosition, setPlaybackPosition] = useState(0);
+  const {
+    overview: allChannelOverview,
+    overviewError: allChannelOverviewError,
+    overviewStale: allChannelOverviewStale,
+  } = useAllChannelOverview({
+    recordingId: playable && showAllChannelOverview ? details.id : null,
+    enabled: playable && showAllChannelOverview,
+    prefix: false,
+    refresh: false,
+  });
+  useEffect(() => setPlaybackPosition(0), [details.id]);
+
   return (
     <section className="details-panel border border-line bg-panel-deep px-[30px] py-6 max-[760px]:px-5">
       <div className="details-heading flex items-center justify-between">
@@ -178,8 +203,26 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
         <span className="micro">LOCAL RECORDING</span>
         <code>{details.location}</code>
       </div>
-      <PlaybackPanel details={details} />
+      <PlaybackPanel details={details} onPositionChange={setPlaybackPosition} />
       <RangeInspector details={details} />
+      {showAllChannelOverview && allChannelOverviewStale && (
+        <p className="notice error mt-5" role="status">
+          The persisted all-channel overview may be stale: {allChannelOverviewError}
+        </p>
+      )}
+      {showAllChannelOverview && !allChannelOverview && allChannelOverviewError && (
+        <p className="notice error mt-5" role="alert">
+          All-channel overview unavailable: {allChannelOverviewError}
+        </p>
+      )}
+      {showAllChannelOverview && allChannelOverview && (
+        <AllChannelTrace
+          overview={allChannelOverview}
+          cursorFrame={playbackPosition}
+          label="All recorded channel overview"
+          testIdPrefix="playback-all-channel"
+        />
+      )}
     </section>
   );
 }

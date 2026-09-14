@@ -6,7 +6,8 @@ import type {
   PlaybackSink,
   PlaybackState,
 } from './contracts.ts';
-import { inspect, rangeSelection, readFrames } from './storage.ts';
+import { TRACE_CHANNEL_LIMIT } from './contracts.ts';
+import { inspect, rangeSelection, readFrames, samplePreviewFrames } from './storage.ts';
 
 const TICK_MS = 10;
 export const PLAYBACK_LIMITS = Object.freeze({
@@ -75,7 +76,7 @@ export class Playback {
     this.sink = sink;
     this.state = state;
     this.channelCount = state.channels.length;
-    this.previewChannels = state.channels.slice(0, 4);
+    this.previewChannels = state.channels.slice(0, TRACE_CHANNEL_LIMIT);
     this.maxBatchFrames = Math.max(
       1,
       Math.min(
@@ -109,7 +110,7 @@ export class Playback {
       expectedFrames,
       durationSeconds: expectedFrames / inspection.sampleRate,
       preview: {
-        channels: selection.channels.slice(0, 4),
+        channels: selection.channels.slice(0, TRACE_CHANNEL_LIMIT),
         observations: [],
         decimation: Math.max(1, Math.ceil(inspection.sampleRate / PREVIEW_POINTS_PER_SECOND)),
         capacity: PLAYBACK_LIMITS.previewCapacity,
@@ -189,6 +190,7 @@ export class Playback {
       this.assertOpen();
       this.assertPosition(position);
       this.assertRecoverable();
+      const observations = await this.previewAt(position);
       const resume = this.state.status === 'playing';
       await this.quiesce();
       await this.closeReader();
@@ -205,7 +207,7 @@ export class Playback {
         currentLagFrames: 0,
         currentLagMs: 0,
         maxLagMs: 0,
-        preview: { ...this.state.preview, observations: [] },
+        preview: { ...this.state.preview, observations },
       };
       this.activeElapsedBeforeAnchor = 0;
       if (this.state.status !== 'ended') await this.openReader();
@@ -252,13 +254,34 @@ export class Playback {
       this.pending = null;
       this.iteratorDone = this.state.position === this.state.expectedFrames;
       this.lastObservedIndex = null;
-      this.previewChannels = channels.slice(0, 4);
+      const previewChannels = channels.slice(0, TRACE_CHANNEL_LIMIT);
+      const observations = await this.previewAt(this.state.position, previewChannels);
+      this.previewChannels = previewChannels;
       this.state = {
         ...this.state,
         channels: [...channels],
-        preview: { ...this.state.preview, channels: [...this.previewChannels], observations: [] },
+        preview: { ...this.state.preview, channels: [...this.previewChannels], observations },
       };
       if (this.state.position < this.state.expectedFrames) await this.openReader();
+      if (resume) this.startTimer();
+      this.publish();
+      return this.snapshot();
+    });
+  }
+
+  setPreviewChannels(channels: number[]) {
+    return this.enqueue(async () => {
+      this.assertOpen();
+      this.assertPreviewChannels(channels);
+      this.assertRecoverable();
+      const resume = this.state.status === 'playing';
+      await this.quiesce();
+      const observations = await this.previewAt(this.state.position, channels);
+      this.previewChannels = [...channels];
+      this.state = {
+        ...this.state,
+        preview: { ...this.state.preview, channels: [...channels], observations },
+      };
       if (resume) this.startTimer();
       this.publish();
       return this.snapshot();
@@ -282,6 +305,20 @@ export class Playback {
       channels: this.state.channels,
     })[Symbol.asyncIterator]();
     await this.readNext();
+  }
+
+  private previewAt(position: number, channels = this.previewChannels) {
+    if (!position) return Promise.resolve([] as Frame[]);
+    const { capacity, decimation } = this.state.preview;
+    return samplePreviewFrames(
+      this.directory,
+      {
+        start: Math.max(0, position - capacity * decimation),
+        end: position,
+        channels,
+      },
+      capacity,
+    );
   }
 
   private async closeReader() {
@@ -385,6 +422,19 @@ export class Playback {
       )
     )
       throw Object.assign(new Error('Choose unique, valid zero-based playback channels'), {
+        statusCode: 400,
+      });
+  }
+
+  private assertPreviewChannels(channels: number[]) {
+    if (
+      !Array.isArray(channels) ||
+      !channels.length ||
+      channels.length > TRACE_CHANNEL_LIMIT ||
+      new Set(channels).size !== channels.length ||
+      channels.some((channel) => !this.state.channels.includes(channel))
+    )
+      throw Object.assign(new Error('Choose one to four selected playback channels to chart'), {
         statusCode: 400,
       });
   }
@@ -581,6 +631,8 @@ export class PlaybackOwner {
         return this.session.setSpeed(request.speed);
       case 'channels':
         return this.session.setChannels(request.channels);
+      case 'preview-channels':
+        return this.session.setPreviewChannels(request.channels);
     }
   }
 

@@ -1,10 +1,16 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
-import type { PlaybackCommand, PlaybackState, RecordingInspection } from '../core/contracts';
+import { useEffect, useRef, useState } from 'react';
+import {
+  TRACE_CHANNEL_LIMIT,
+  type PlaybackCommand,
+  type PlaybackState,
+  type RecordingInspection,
+} from '../core/contracts';
 import { requestJson } from './http';
 import { useServiceEvents } from './use-service-events';
+import { channelWindowLabel } from './channel-window';
 
 const SignalTrace = dynamic(() => import('./signal-trace').then((module) => module.SignalTrace), {
   ssr: false,
@@ -26,8 +32,13 @@ const SPEED_PRESETS = [0.25, 0.5, 1, 2, 4];
 const integer = (value: number) => value.toLocaleString('en-US');
 const seconds = (value: number) => `${value.toFixed(3)} s`;
 const milliseconds = (value: number) => `${value.toFixed(1)} ms`;
-
-export function PlaybackPanel({ details }: { details: RecordingInspection }) {
+export function PlaybackPanel({
+  details,
+  onPositionChange,
+}: {
+  details: RecordingInspection;
+  onPositionChange?: (position: number) => void;
+}) {
   const playable = details.status === 'completed' && details.expectedFrames !== null;
   const [state, setState] = useState<PlaybackState | null>(null);
   const [busy, setBusy] = useState(playable);
@@ -36,13 +47,17 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
   const [seekValue, setSeekValue] = useState('0');
   const [timelineDraft, setTimelineDraft] = useState(0);
   const [editingTimeline, setEditingTimeline] = useState(false);
+  const [scrubbing, setScrubbing] = useState(false);
+  const scrubTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrubGeneration = useRef(0);
+  const scrubPending = useRef<{ position: number; generation: number } | null>(null);
+  const scrubDrain = useRef<Promise<void> | null>(null);
   const [speedValue, setSpeedValue] = useState('1');
   const connection = useServiceEvents({
     url: playable ? '/api/events' : null,
     handlers: { playback: (value) => setState(value as PlaybackState) },
   });
   const connected = connection === 'live';
-
   useEffect(() => {
     if (!playable) return;
     let active = true;
@@ -70,18 +85,42 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
 
   const activeHere = state?.recordingId === details.id;
   const current = activeHere ? state : null;
+  const chartStart = current
+    ? Math.max(0, current.channels.indexOf(current.preview.channels[0]))
+    : 0;
 
   useEffect(() => {
     if (current && !editingTimeline) setTimelineDraft(current.position);
   }, [current, editingTimeline]);
+  useEffect(
+    () => onPositionChange?.(current?.position ?? 0),
+    [current?.position, onPositionChange],
+  );
   useEffect(() => {
     if (current) setSpeedValue(String(current.speed));
   }, [current?.speed]);
+  useEffect(
+    () => () => {
+      if (scrubTimer.current) clearTimeout(scrubTimer.current);
+      scrubPending.current = null;
+      scrubGeneration.current++;
+    },
+    [],
+  );
 
   async function command(request: PlaybackCommand) {
     setBusy(true);
     setError('');
     try {
+      if (scrubTimer.current) {
+        clearTimeout(scrubTimer.current);
+        scrubTimer.current = null;
+        scrubPending.current = {
+          position: timelineDraft,
+          generation: ++scrubGeneration.current,
+        };
+      }
+      if (scrubPending.current || scrubDrain.current) await drainTimeline();
       const result = await requestJson<PlaybackState>('/api/playback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,9 +139,65 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
     void command({ action: 'seek', recordingId: details.id, position });
   }
 
+  function previewTimeline(position: number) {
+    setTimelineDraft(position);
+    if (!current || current.status === 'playing') return;
+    if (scrubTimer.current) clearTimeout(scrubTimer.current);
+    const generation = ++scrubGeneration.current;
+    scrubTimer.current = setTimeout(() => {
+      scrubTimer.current = null;
+      scrubPending.current = { position, generation };
+      void drainTimeline();
+    }, 50);
+  }
+
+  function drainTimeline(): Promise<void> {
+    if (scrubDrain.current) return scrubDrain.current;
+    const drain = (async () => {
+      setScrubbing(true);
+      while (scrubPending.current) {
+        const pending = scrubPending.current;
+        scrubPending.current = null;
+        try {
+          const result = await requestJson<PlaybackState>('/api/playback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'seek',
+              recordingId: details.id,
+              position: pending.position,
+            }),
+          });
+          if (scrubGeneration.current === pending.generation && scrubPending.current === null)
+            setState(result);
+        } catch (cause) {
+          if (scrubGeneration.current === pending.generation && scrubPending.current === null)
+            setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      }
+    })();
+    scrubDrain.current = drain;
+    void drain.finally(() => {
+      if (scrubDrain.current === drain) scrubDrain.current = null;
+      setScrubbing(false);
+    });
+    return drain;
+  }
+
   function commitTimeline() {
+    if (scrubTimer.current) clearTimeout(scrubTimer.current);
+    scrubTimer.current = null;
     setEditingTimeline(false);
-    if (current && timelineDraft !== current.position) seek(timelineDraft);
+    if (
+      current &&
+      (timelineDraft !== current.position || scrubPending.current || scrubDrain.current)
+    ) {
+      scrubPending.current = {
+        position: timelineDraft,
+        generation: ++scrubGeneration.current,
+      };
+      void drainTimeline();
+    }
   }
 
   function submitExactSeek() {
@@ -126,7 +221,17 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
     }
     void command({ action: 'channels', recordingId: details.id, channels });
   }
-  const commandsUnavailable = busy || !connected;
+
+  function showChartChannels(start: number) {
+    if (!current) return;
+    void command({
+      action: 'preview-channels',
+      recordingId: details.id,
+      channels: current.channels.slice(start, start + TRACE_CHANNEL_LIMIT),
+    });
+  }
+  const timelineUnavailable = busy || !connected;
+  const commandsUnavailable = timelineUnavailable || scrubbing;
 
   return (
     <section className="mt-8 border-t border-line pt-6" aria-label="Recording playback">
@@ -209,7 +314,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
             <button
               className="inspect-button min-w-32"
               onClick={() => void command({ action: 'restart', recordingId: details.id })}
-              disabled={commandsUnavailable}
+              disabled={timelineUnavailable}
             >
               Restart
             </button>
@@ -231,7 +336,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
               value={timelineDraft}
               disabled={commandsUnavailable}
               onPointerDown={() => setEditingTimeline(true)}
-              onChange={(event) => setTimelineDraft(Number(event.target.value))}
+              onChange={(event) => previewTimeline(Number(event.target.value))}
               onPointerUp={commitTimeline}
               onKeyUp={(event) => {
                 if (
@@ -337,15 +442,41 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
           </div>
 
           <fieldset
-            className="mt-5 border border-line bg-[#171917] p-4"
+            className="mt-8 border border-line bg-[#171917] p-4"
             disabled={commandsUnavailable}
           >
             <legend className="micro px-1">
               PLAYBACK CHANNELS / {current.channels.length} SELECTED
             </legend>
             <p className="mt-1 text-xs text-muted">
-              The trace shows the first four selected channels.
+              All selected channels are emitted by playback. The chart displays four at a time.
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                className="inspect-button"
+                type="button"
+                aria-label="Previous trace group"
+                onClick={() => showChartChannels(Math.max(0, chartStart - TRACE_CHANNEL_LIMIT))}
+                disabled={chartStart === 0}
+              >
+                Previous
+              </button>
+              <output
+                className="font-mono text-xs text-muted"
+                data-testid="playback-chart-channels"
+              >
+                Chart: {channelWindowLabel(current.preview.channels)}
+              </output>
+              <button
+                className="inspect-button"
+                type="button"
+                aria-label="Next trace group"
+                onClick={() => showChartChannels(chartStart + TRACE_CHANNEL_LIMIT)}
+                disabled={chartStart + TRACE_CHANNEL_LIMIT >= current.channels.length}
+              >
+                Next
+              </button>
+            </div>
             <div className="mt-3 grid grid-cols-4 gap-x-3 gap-y-2 text-xs sm:grid-cols-6 lg:grid-cols-8">
               {Array.from({ length: details.channels }, (_, channel) => (
                 <label key={channel} className="flex items-center gap-2 text-muted">

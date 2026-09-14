@@ -566,13 +566,21 @@ colors. Color must not be the only indication of success or failure. Avoid decor
 measurements, marketing sections, excessive animation, or unreadable terminal effects.
 
 Use Canvas for traces with a fixed-size rolling window and decimation bounded by display width and
-selected channels. Prefer a min/max envelope when reducing dense windows so narrow peaks are not
-concealed. Label previews as decimated; the stored signal retains full fidelity. Do not feed every
-raw sample through React state.
+selected channels. A bounded adaptive overview may retain whole-acquisition context alongside that
+detail, provided browser-unobserved intervals remain explicit and the overview cannot affect
+recording. Prefer a min/max envelope when reducing dense windows so narrow peaks are not concealed.
+Label previews as decimated; the stored signal retains full fidelity. Do not feed every raw sample
+through React state.
 
 Show only a manageable initial channel subset, while making every configured channel selectable.
-Provide clear units, original index/time context, channel labels, and a distinction between
-normalized amplitude and physical units. Never label an unknown unit as volts.
+Also show every available channel at once in a single-canvas stacked persisted overview bounded to
+2,048 scalar values. Place the live panel after the whole-acquisition preview and the recording
+panel as the final recording-detail section. Retain fully readable channel labels at narrow widths.
+Keep it independent of detailed-chart and playback-output selection. A horizontally scrollable
+whole-acquisition preview follows the latest data until the user scrolls away and provides an
+explicit way to resume following. Provide clear units, original index/time context, channel labels,
+and a distinction between normalized amplitude and physical units. Never label an unknown unit as
+volts.
 
 Buttons and controls have disabled/busy states, visible focus, text labels or accessible names, and
 keyboard operation. On smaller screens, controls and metrics reflow without clipping or obstructing

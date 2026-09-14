@@ -11,16 +11,20 @@ export function useServiceEvents({
   url,
   handlers,
   snapshot,
+  reconnectQuery,
 }: {
   url: string | null;
   handlers: EventHandlers;
   snapshot?: { url: string; apply: (value: unknown) => void };
+  reconnectQuery?: () => URLSearchParams;
 }) {
   const handlersRef = useRef(handlers);
   const snapshotRef = useRef(snapshot);
+  const reconnectQueryRef = useRef(reconnectQuery);
   const [connection, setConnection] = useState<ServiceConnection>('connecting');
   handlersRef.current = handlers;
   snapshotRef.current = snapshot;
+  reconnectQueryRef.current = reconnectQuery;
 
   useEffect(() => {
     if (!url) return;
@@ -50,7 +54,8 @@ export function useServiceEvents({
           snapshotRef.current.apply(value);
         }
         if (cancelled) return;
-        source = new EventSource(url);
+        const query = reconnectQueryRef.current?.().toString();
+        source = new EventSource(query ? `${url}?${query}` : url);
         for (const eventName of Object.keys(handlersRef.current)) {
           source.addEventListener(eventName, (event) => {
             try {

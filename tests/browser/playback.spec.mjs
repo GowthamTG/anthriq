@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -51,10 +51,69 @@ async function createGapRecording() {
   );
 }
 
+async function createDenseRecording() {
+  const source = join(root, 'ui-recording');
+  const directory = join(root, 'dense-recording');
+  await mkdir(directory);
+  const frameCount = 800;
+  const channels = 32;
+  const recordBytes = 8 + channels * 4;
+  const frames = Buffer.alloc(frameCount * recordBytes);
+  for (let index = 0; index < frameCount; index++) {
+    const offset = index * recordBytes;
+    frames.writeBigUInt64LE(BigInt(index), offset);
+    for (let channel = 0; channel < channels; channel++)
+      frames.writeFloatLE(Math.sin(index / 10 + channel), offset + 8 + channel * 4);
+  }
+  await writeFile(join(directory, 'frames.bin'), frames);
+  const metadata = JSON.parse(await readFile(join(source, 'metadata.json'), 'utf8'));
+  await writeFile(
+    join(directory, 'metadata.json'),
+    JSON.stringify({
+      ...metadata,
+      id: 'dense-recording',
+      displayName: 'Dense playback reference',
+      channels,
+      recordBytes,
+      sampleRate: 400,
+      seconds: frameCount / 400,
+      expectedFrames: frameCount,
+      recordedFrames: frameCount,
+      totalSamples: frameCount * channels,
+      duration: frameCount / 400,
+      droppedFrames: 0,
+    }),
+  );
+}
+
+async function createEmptyRecording() {
+  const source = join(root, 'ui-recording');
+  const directory = join(root, 'empty-recording');
+  await mkdir(directory);
+  await writeFile(join(directory, 'frames.bin'), Buffer.alloc(0));
+  const metadata = JSON.parse(await readFile(join(source, 'metadata.json'), 'utf8'));
+  await writeFile(
+    join(directory, 'metadata.json'),
+    JSON.stringify({
+      ...metadata,
+      id: 'empty-recording',
+      displayName: 'Empty recording',
+      seconds: 0,
+      expectedFrames: 0,
+      recordedFrames: 0,
+      totalSamples: 0,
+      duration: 0,
+      droppedFrames: 0,
+    }),
+  );
+}
+
 test.beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'scope-playback-browser-'));
   await record('api-recording', 0.3);
   await record('ui-recording', 0.5);
+  await createDenseRecording();
+  await createEmptyRecording();
   await record('control-recording', 2);
   await createGapRecording();
   await record('incomplete-recording', 0.1);
@@ -92,6 +151,34 @@ const post = (body) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+
+test('all-channel overview is ordered, bounded, endpoint-validated, and includes its extent', async () => {
+  const response = await fetch(`${base}/api/recordings/dense-recording/channel-overview`);
+  expect(response.status).toBe(200);
+  const overview = await response.json();
+  expect(overview).toMatchObject({
+    channels: Array.from({ length: 32 }, (_, channel) => channel),
+    sampleRate: 400,
+    confirmedFrames: 800,
+    capacity: 64,
+  });
+  expect(overview.observations).toHaveLength(64);
+  expect(overview.observations[0].index).toBe(0);
+  expect(overview.observations.at(-1).index).toBe(799);
+  expect(overview.observations.every((frame) => frame.values.length === 32)).toBe(true);
+  expect(overview.observations.length * overview.channels.length).toBeLessThanOrEqual(2048);
+
+  const empty = await (
+    await fetch(`${base}/api/recordings/empty-recording/channel-overview`)
+  ).json();
+  expect(empty).toMatchObject({ confirmedFrames: 0, observations: [] });
+  expect((await fetch(`${base}/api/recordings/not%2Fa%2Frecording/channel-overview`)).status).toBe(
+    404,
+  );
+  expect(
+    (await fetch(`${base}/api/recordings/dense-recording/channel-overview?limit=2`)).status,
+  ).toBe(400);
+});
 
 test('playback HTTP commands validate input and preserve one active session', async () => {
   expect(await (await fetch(`${base}/api/playback`)).json()).toMatchObject({
@@ -245,6 +332,152 @@ test('uPlot trace preserves initial, interior, and trailing gaps across replacem
   await expect(page.getByTestId('playback-visible-gaps')).toContainText('0');
   await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
   expect(consoleErrors).toEqual([]);
+});
+
+test('a full playback preview does not reserve space for observations it no longer retains', async ({
+  page,
+}) => {
+  await page.goto(`${base}/recordings?id=dense-recording`);
+  const allChannelPanel = page.getByTestId('playback-all-channel-panel');
+  expect(
+    await allChannelPanel.evaluate((panel) => panel.parentElement?.lastElementChild === panel),
+  ).toBe(true);
+  await expect(page.getByRole('img', { name: 'All recorded channel overview' })).toBeVisible();
+  await expect(
+    page.getByTestId('playback-all-channel-lanes').locator('[data-channel]'),
+  ).toHaveCount(32);
+  await expect(page.getByTestId('playback-all-channel-canvas')).toHaveCount(1);
+  await expect(
+    page.getByTestId('playback-all-channel-labels').locator('[data-channel-label]'),
+  ).toHaveCount(32);
+  await expect(page.getByTestId('playback-all-channel-context')).toContainText(
+    'Normalized amplitude per lane',
+  );
+  await expect(page.getByTestId('playback-all-channel-context')).toContainText(
+    'Shared original-frame and elapsed-time domain',
+  );
+  if (process.env.SCOPE_CAPTURE_ALL_CHANNEL_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'test-results', 'all-channels-playback-desktop.png'),
+      fullPage: true,
+    });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.getByTestId('playback-chart-channels')).toContainText('Ch 0–Ch 3');
+  await page.getByRole('button', { name: 'Next trace group' }).click();
+  await expect(page.getByTestId('playback-chart-channels')).toContainText('Ch 4–Ch 7');
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).preview.channels)
+    .toEqual([4, 5, 6, 7]);
+  await page.getByRole('button', { name: 'Previous trace group' }).click();
+  await expect(page.getByTestId('playback-chart-channels')).toContainText('Ch 0–Ch 3');
+  await page.getByRole('checkbox', { name: 'Ch 31', exact: true }).click();
+  await expect(
+    page.getByTestId('playback-all-channel-lanes').locator('[data-channel]'),
+  ).toHaveCount(32);
+  await page.evaluate(() => {
+    const canvas = document.querySelector('[data-testid="playback-all-channel-canvas"]');
+    window.__allChannelCanvasSizeMutations = 0;
+    new MutationObserver((mutations) => {
+      window.__allChannelCanvasSizeMutations += mutations.length;
+    }).observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+  });
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByTestId('playback-status')).toHaveText('Ended', { timeout: 5000 });
+  expect(await page.evaluate(() => window.__allChannelCanvasSizeMutations)).toBe(0);
+
+  const snapshot = await (await fetch(`${base}/api/playback`)).json();
+  expect(snapshot.preview.observations).toHaveLength(snapshot.preview.capacity);
+  const firstRetained = snapshot.preview.observations[0].index;
+  await expect(page.getByTestId('playback-visible-window')).toHaveText(
+    `Visible window: frames ${firstRetained.toLocaleString('en-US')}-799`,
+  );
+  await expect(page.getByTestId('playback-trace').locator('.uplot')).toHaveCount(1);
+  if (process.env.SCOPE_CAPTURE_PLAYBACK_WINDOW_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'test-results', 'playback-retained-window.png'),
+      fullPage: true,
+    });
+
+  const timeline = page.getByTestId('playback-timeline');
+  const timelineBox = await timeline.boundingBox();
+  expect(timelineBox).not.toBeNull();
+  const initialPosition = (await (await fetch(`${base}/api/playback`)).json()).position;
+  await page.mouse.move(
+    timelineBox.x + timelineBox.width * 0.25,
+    timelineBox.y + timelineBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    timelineBox.x + timelineBox.width * 0.65,
+    timelineBox.y + timelineBox.height / 2,
+    {
+      steps: 5,
+    },
+  );
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).position)
+    .not.toBe(initialPosition);
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await expect(page.getByTestId('playback-latest-frame')).not.toContainText('Not available');
+  expect(
+    (await (await fetch(`${base}/api/playback`)).json()).preview.observations.length,
+  ).toBeGreaterThan(0);
+  await page.mouse.up();
+
+  await page.goto(`${base}/recordings?id=empty-recording`);
+  await expect(page.getByTestId('playback-all-channel-context')).toContainText(
+    'No recorded frames; exclusive extent 0.',
+  );
+});
+
+test('rapid timeline scrubbing serializes seeks and commits the newest position', async ({
+  page,
+}) => {
+  let activeSeeks = 0;
+  let maximumActiveSeeks = 0;
+  let observedSeeks = 0;
+  await page.route(`${base}/api/playback`, async (route) => {
+    const request = route.request();
+    const body = request.method() === 'POST' ? request.postDataJSON() : null;
+    if (body?.action !== 'seek') return route.continue();
+    activeSeeks++;
+    observedSeeks++;
+    maximumActiveSeeks = Math.max(maximumActiveSeeks, activeSeeks);
+    if (observedSeeks === 1) await new Promise((resolve) => setTimeout(resolve, 200));
+    try {
+      const response = await route.fetch();
+      await route.fulfill({ response });
+    } finally {
+      activeSeeks--;
+    }
+  });
+
+  await page.goto(`${base}/recordings?id=control-recording`);
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  const timeline = page.getByTestId('playback-timeline');
+  const input = async (position) =>
+    timeline.evaluate((element, value) => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(element, String(value));
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    }, position);
+
+  await input(5);
+  await page.waitForTimeout(80);
+  await input(15);
+  await page.waitForTimeout(80);
+  await input(35);
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).position)
+    .toBe(35);
+  expect(observedSeeks).toBeGreaterThanOrEqual(2);
+  expect(maximumActiveSeeks).toBe(1);
+  await page.getByRole('button', { name: 'Restart' }).click();
+  await expect
+    .poll(async () => (await (await fetch(`${base}/api/playback`)).json()).position)
+    .toBe(0);
 });
 
 test('recording detail pauses, seeks, changes speed, and changes visible channels', async ({

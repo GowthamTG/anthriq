@@ -330,6 +330,12 @@ Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01
 [T10 playback evidence](docs/evidence/t10/README.md) distinguish completed local checks from the
 later sustained-performance work.
 
+`next-env.d.ts` remains tracked and included by `tsconfig.json` because Next.js generates the route
+and root-parameter type references consumed by type checking. Next.js also owns that file's exact
+syntax, so Prettier deliberately ignores it. CI runs formatting both before and after the production
+build, then `npm run check:clean`; the latter prints status and diffs and fails if a build or check
+changes any tracked file or creates an unignored file.
+
 ## Phase boundary
 
 The implemented phases include configurable acquisition, inspection, range retrieval, CSV export,

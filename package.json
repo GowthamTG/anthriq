@@ -14,6 +14,7 @@
     "test:browser": "playwright test",
     "cli": "node core/cli.ts",
     "typecheck": "tsc --noEmit",
+    "check:clean": "node scripts/check-clean-worktree.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

@@ -17,6 +17,11 @@ assessment implementation, automated checks, one-hour acquisition evidence, long
 retrieval/export/playback evidence, a clean-clone rehearsal, and the final demonstration. Optional
 public hosting remains separate T18 work and does not gate this handoff.
 
+T18 adds an explicit, resource-bounded public-demo mode suitable for a single Railway service with a
+persistent volume. No public URL is claimed until the deployed capture, playback, verification,
+restart persistence, and free-tier limits have been measured. See the
+[public hosting guide](docs/hosting.md).
+
 Start with the
 [narrated T17 demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/scope-t17-demo.m4v),
 then use the [complete assessment traceability](docs/evidence/t17/traceability.json) to map every

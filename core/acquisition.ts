@@ -29,12 +29,12 @@ export class Acquisition {
   resolveFinished: (state: AcquisitionState) => void = () => {};
   previews = new Map<string, import('./contracts.ts').LivePreview>();
   previewChannels = new Map<string, number[]>();
-  constructor(root = resolve('recordings')) {
+  constructor(root = resolve('recordings'), initialSettings: SettingsInput = {}) {
     this.root = root;
     this.state = {
       status: 'idle',
       id: null,
-      settings: config(),
+      settings: config(initialSettings),
       metrics: null,
       preview: null,
       metadata: null,

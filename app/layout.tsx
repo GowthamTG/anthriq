@@ -1,14 +1,18 @@
 import type { ReactNode } from 'react';
 import './globals.css';
+import { RuntimeBanner } from './runtime-banner';
 
 export const metadata = {
   title: 'SCOPE · Signal capture',
-  description: 'A local instrument for deterministic signal acquisition.',
+  description: 'An instrument for deterministic signal acquisition.',
 };
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <RuntimeBanner />
+        {children}
+      </body>
     </html>
   );
 }

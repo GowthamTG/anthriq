@@ -19,6 +19,7 @@ import { advanceLiveTrace, type LiveTraceHistory } from './live-trace-history';
 import { channelWindowLabel } from './channel-window';
 import { AllChannelTrace } from './all-channel-trace';
 import { useAllChannelOverview } from './use-all-channel-overview';
+import { useRuntime } from './use-runtime';
 const SignalTrace = dynamic(() => import('./signal-trace').then((module) => module.SignalTrace), {
   ssr: false,
 });
@@ -55,6 +56,7 @@ function clock(value: number | null | undefined) {
 }
 
 export default function Acquire() {
+  const runtime = useRuntime();
   const [state, setState] = useState<AcquisitionState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -577,6 +579,7 @@ export default function Acquire() {
               disabled={!connected || busy || active}
               onChange={changeSetting}
               onStart={() => command('start')}
+              runtime={runtime}
             />
             <div
               className={`controls grid gap-[9px] max-[760px]:fixed max-[760px]:z-10 max-[760px]:[&_button]:min-h-[46px] ${
@@ -610,7 +613,9 @@ export default function Acquire() {
               </button>
             </div>
             <p className="control-note mt-4 mb-0 text-center text-[10px] leading-[1.6] text-muted">
-              Saved locally. No account or cloud connection required.
+              {runtime?.mode === 'public-demo'
+                ? 'Saved on a shared persistent volume. Temporary recordings rotate automatically.'
+                : 'Saved locally. No account or cloud connection required.'}
             </p>
           </aside>
         </div>

@@ -200,8 +200,8 @@ export function RecordingDetails({
         </div>
       </dl>
       <div className="location grid gap-2.5 border-t border-line pt-5">
-        <span className="micro">LOCAL RECORDING</span>
-        <code>{details.location}</code>
+        <span className="micro">{details.location ? 'LOCAL RECORDING' : 'HOSTED RECORDING'}</span>
+        <code>{details.location || 'Persistent hosted storage · temporary public demo data'}</code>
       </div>
       <PlaybackPanel details={details} onPositionChange={setPlaybackPosition} />
       <RangeInspector details={details} />

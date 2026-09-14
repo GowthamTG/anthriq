@@ -1,5 +1,298 @@
 {
   "schemaVersion": "SCOPE-T17-HANDOFF/1",
-  "result": "PENDING",
-  "note": "Replaced atomically by the clean-clone rehearsal after the candidate commit is pushed."
+  "result": "PASS",
+  "beganAt": "2026-09-14T08:56:36.035Z",
+  "completedAt": "2026-09-14T08:58:42.099Z",
+  "workload": "development",
+  "source": {
+    "repository": "git@github.com:GowthamTG/anthriq.git",
+    "requestedRef": "3c4c78320ae59cb11a0010962aad7ff8602be874",
+    "commit": "3c4c78320ae59cb11a0010962aad7ff8602be874",
+    "runtimeTree": {
+      "sha256": "520ab0f9af6428533131d4c0888903995548b596158eb582c2ad7402389bfdb9",
+      "files": 203
+    }
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "node": "v24.21.0",
+    "npm": "11.19.0"
+  },
+  "steps": [
+    {
+      "command": "git clone --no-checkout git@github.com:GowthamTG/anthriq.git /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/checkout",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 4466.494,
+      "stdoutBytes": 0,
+      "stderrBytes": 101,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "9d23255b843bb4f63029bdb3bae99bd668ec464a3790c083a1a17abc57570e0d"
+    },
+    {
+      "command": "git checkout --detach 3c4c78320ae59cb11a0010962aad7ff8602be874",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 55.652,
+      "stdoutBytes": 0,
+      "stderrBytes": 62,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "33c6d0fcfc84f1ee915495530256caab78b287b4f42fba32d4ecc7f2346544e2"
+    },
+    {
+      "command": "npm ci",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 2167.162,
+      "stdoutBytes": 141,
+      "stderrBytes": 0,
+      "stdoutSha256": "157fe6caebf97caa4ecd8fdec9e2685aa2768826e38215450e480d86028011e5",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run format:check",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 1107.608,
+      "stdoutBytes": 128,
+      "stderrBytes": 0,
+      "stdoutSha256": "213ba6d4f40ef2bdfd72a08511493582381e3290dbab3c95b8a92873f92d9bc1",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 922.156,
+      "stdoutBytes": 53,
+      "stderrBytes": 0,
+      "stdoutSha256": "116f2d4288627719ee2671cc05e582c8012b533a10290da4486fa8521da7c0c9",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 58680.71,
+      "stdoutBytes": 8288,
+      "stderrBytes": 0,
+      "stdoutSha256": "047de2496e4db9e52ecf505a6b2737a7d45f6a4472ab1df03efd3bf54da5b621",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 7295.699,
+      "stdoutBytes": 755,
+      "stderrBytes": 0,
+      "stdoutSha256": "cf5ca05de79ed30deba223c10f781a70142eb9ee56375bba19271c18217fcfaa",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run format:check",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 822.986,
+      "stdoutBytes": 128,
+      "stderrBytes": 0,
+      "stdoutSha256": "213ba6d4f40ef2bdfd72a08511493582381e3290dbab3c95b8a92873f92d9bc1",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run check:clean",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 119.697,
+      "stdoutBytes": 103,
+      "stderrBytes": 0,
+      "stdoutSha256": "a36b3033ed7170c0a30b865c7832cf0ff5a5f48e43c0d6679b4f1e0c9aa2c28c",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run check:links",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 105.276,
+      "stdoutBytes": 128,
+      "stderrBytes": 0,
+      "stdoutSha256": "f1e48448fe65e511f72fc057206b58b41cec3494d8f67faa507ab2d734322f6e",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npx playwright install chromium",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 583.758,
+      "stdoutBytes": 0,
+      "stderrBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run test:browser",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 44633.906,
+      "stdoutBytes": 3804,
+      "stderrBytes": 352,
+      "stdoutSha256": "853b07040bdc76ef44c99f90a7e457fffb89c046bc8d4678eb372fa99fbf468c",
+      "stderrSha256": "44baf8c743d42424ad7c326656ca4c4f4eb929ebfc0230f95aa63b00bed3dcbd"
+    },
+    {
+      "command": "npm run evidence:validate-acquisition",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 124.168,
+      "stdoutBytes": 158,
+      "stderrBytes": 0,
+      "stdoutSha256": "617a03e7ea52bfe1c95a2539c37f02ba313eeac0de6a3e3ffd55901588c40cf5",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run evidence:validate-long-recording",
+      "exitCode": 0,
+      "signal": null,
+      "elapsedMs": 119.409,
+      "stdoutBytes": 179,
+      "stderrBytes": 0,
+      "stdoutSha256": "28e9d2581fc46f7510b4ae5b544d045dc6b951b7d70e4578b4e90d12888797ad",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "server": {
+    "elapsedMs": 228.539,
+    "stateStatus": 200,
+    "pageStatus": 200,
+    "acquisitionStatus": "idle",
+    "port": 53715,
+    "exitCode": 0,
+    "signal": null,
+    "shutdownMs": 5.347,
+    "totalElapsedMs": 234.375,
+    "stdoutBytes": 71,
+    "stderrBytes": 0,
+    "stdoutSha256": "ddb39cbd6216bc0503d1f6680733a5b55960f83ca04e4defb450fa8cc12a332e",
+    "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cli": {
+    "recording": {
+      "status": "completed",
+      "channels": 32,
+      "sampleRate": 4000,
+      "seed": 42,
+      "expectedFrames": 8000,
+      "recordedFrames": 8000,
+      "totalSamples": 256000,
+      "frameBytes": 1088000,
+      "droppedFrames": 0,
+      "trailingBytes": 0,
+      "processSeparation": true
+    },
+    "retrieval": [
+      {
+        "name": "beginning",
+        "start": 0,
+        "end": 4,
+        "rows": 4,
+        "command": "/Users/gowthamtg/.nvm/versions/node/v24.21.0/bin/node core/cli.ts retrieve /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/recordings/t17-cli-recording --start 0 --end 4 --channels 31,2,17,0",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 55.247,
+        "stdoutBytes": 413,
+        "stderrBytes": 0,
+        "stdoutSha256": "e33c56a201e38c74bea73f7363bd52da1746ba307c016efb20b88e407514bfc4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "middle",
+        "start": 3998,
+        "end": 4002,
+        "rows": 4,
+        "command": "/Users/gowthamtg/.nvm/versions/node/v24.21.0/bin/node core/cli.ts retrieve /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/recordings/t17-cli-recording --start 3998 --end 4002 --channels 31,2,17,0",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 54.336,
+        "stdoutBytes": 432,
+        "stderrBytes": 0,
+        "stdoutSha256": "b805119c6b74b3c6a68dc7a2fd183474c89f0e9f5e3510a80fdc6e4088f6decb",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "end",
+        "start": 7996,
+        "end": 8000,
+        "rows": 4,
+        "command": "/Users/gowthamtg/.nvm/versions/node/v24.21.0/bin/node core/cli.ts retrieve /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/recordings/t17-cli-recording --start 7996 --end 8000 --channels 31,2,17,0",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 54.866,
+        "stdoutBytes": 425,
+        "stderrBytes": 0,
+        "stdoutSha256": "5a74266d0b716304a03a6a5876e9cd72847e3dc4aabb3083a3298d048d91bdaf",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "playback": {
+      "status": "ended",
+      "position": 8000,
+      "emittedFrames": 8000,
+      "emittedSamples": 256000,
+      "elapsedMs": 2063.068
+    },
+    "verification": {
+      "result": "PASS",
+      "recordsScanned": 8000,
+      "formatErrors": 0,
+      "missingSamples": 0,
+      "duplicatedSamples": 0,
+      "incorrectSamples": 0,
+      "elapsedMs": 8,
+      "peakRssBytes": 102400000
+    },
+    "commands": [
+      {
+        "command": "/Users/gowthamtg/.nvm/versions/node/v24.21.0/bin/node core/cli.ts record /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/recordings/t17-cli-recording --seconds 2",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 2163.416,
+        "stdoutBytes": 172,
+        "stderrBytes": 0,
+        "stdoutSha256": "92ef84cb5c3e7edccfe6dd6b60e2e226a3d87c7a167703bc012f9486d160f22f",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": "/Users/gowthamtg/.nvm/versions/node/v24.21.0/bin/node core/cli.ts inspect /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/recordings/t17-cli-recording",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 69.265,
+        "stdoutBytes": 1463,
+        "stderrBytes": 0,
+        "stdoutSha256": "d05978cea8e2e960fc63875085f9265f8316f6c4a18588e5a156a85858b25fe8",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": "/Users/gowthamtg/.nvm/versions/node/v24.21.0/bin/node core/cli.ts playback /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/recordings/t17-cli-recording",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 2063.068,
+        "stdoutBytes": 0,
+        "stderrBytes": 27569,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "0d168a06fc8aef3e04902bc547046a5f448f75ce12a1f2a0f1bb6731d04ce6f4"
+      },
+      {
+        "command": "/Users/gowthamtg/.nvm/versions/node/v24.21.0/bin/node core/cli.ts verify /var/folders/w0/wvbsk0zx7tj52wt3wctyy3000000gn/T/scope-t17-handoff-IP6i11/recordings/t17-cli-recording",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 78.754,
+        "stdoutBytes": 1135,
+        "stderrBytes": 0,
+        "stdoutSha256": "a8b05b99124b89e3e7e6d2623f7608aa94cac029e94d7879515fe93b32972f77",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  }
 }

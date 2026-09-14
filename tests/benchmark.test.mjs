@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runAcquisitionBenchmark } from '../scripts/acquisition-benchmark.mjs';
+import { runAcquisitionBenchmark, windows } from '../scripts/acquisition-benchmark.mjs';
 import { validateAcquisitionEvidence } from '../scripts/validate-acquisition-evidence.mjs';
 
 test(
@@ -33,4 +33,22 @@ test(
 
 test('the benchmark requires an honest workload declaration', async () => {
   await assert.rejects(runAcquisitionBenchmark({ seconds: 3 }), /Declare --workload/);
+});
+
+test('a terminal short-run metric is included in the late memory window', () => {
+  const metric = (elapsedSeconds, rssBytes) => ({
+    generator: { elapsedSeconds, rssBytes, outstandingBytes: 0 },
+    recorderRssBytes: rssBytes,
+    queueBytes: 0,
+  });
+  const result = windows([metric(0.5, 10), metric(1.5, 20), metric(3.001, 30)], 3);
+  assert.deepEqual(
+    result.map(({ label, measurements }) => ({ label, measurements })),
+    [
+      { label: 'warmup', measurements: 1 },
+      { label: 'middle', measurements: 1 },
+      { label: 'late', measurements: 1 },
+    ],
+  );
+  assert.equal(result[2].endSeconds, 3);
 });

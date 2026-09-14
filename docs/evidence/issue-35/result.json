@@ -1,6 +1,6 @@
 {
   "format": "SCOPE-PREVIEW-EVIDENCE/1",
-  "createdAt": "2026-09-14T03:33:53.023Z",
+  "createdAt": "2026-09-14T03:37:33.267Z",
   "environment": {
     "platform": "darwin",
     "release": "25.6.0",
@@ -10,7 +10,7 @@
     "totalMemoryBytes": 25769803776,
     "node": "v24.21.0"
   },
-  "recordingRoot": "recordings/issue-35-2026-09-14T03-33-48.085Z",
+  "recordingRoot": "recordings/issue-35-2026-09-14T03-37-28.362Z",
   "states": [
     {
       "label": "recording",
@@ -19,9 +19,9 @@
       "channels": [3, 1],
       "bucketFrames": 7,
       "capacity": 256,
-      "persistedFrames": 206,
-      "physicalBytesAtRead": 5376,
-      "originalFrameWindow": { "start": 0, "end": 206 },
+      "persistedFrames": 197,
+      "physicalBytesAtRead": 4824,
+      "originalFrameWindow": { "start": 0, "end": 197 },
       "unavailablePersistedFrameRange": null,
       "physicalGapCount": 0,
       "visibleGapCount": 0,
@@ -224,17 +224,10 @@
         },
         {
           "start": 196,
-          "end": 203,
-          "persistedMembers": 7,
-          "minimum": [-0.5256620049476624, -0.910532534122467],
-          "maximum": [-0.4623619616031647, -0.8515976071357727]
-        },
-        {
-          "start": 203,
-          "end": 206,
-          "persistedMembers": 3,
-          "minimum": [-0.4654916524887085, -0.8321301937103271],
-          "maximum": [-0.4644484221935272, -0.7931952476501465]
+          "end": 197,
+          "persistedMembers": 1,
+          "minimum": [-0.5256620049476624, -0.8715976476669312],
+          "maximum": [-0.5256620049476624, -0.8715976476669312]
         }
       ]
     },
@@ -245,9 +238,9 @@
       "channels": [3, 1],
       "bucketFrames": 7,
       "capacity": 256,
-      "persistedFrames": 206,
-      "physicalBytesAtRead": 5376,
-      "originalFrameWindow": { "start": 0, "end": 206 },
+      "persistedFrames": 197,
+      "physicalBytesAtRead": 4824,
+      "originalFrameWindow": { "start": 0, "end": 197 },
       "unavailablePersistedFrameRange": null,
       "physicalGapCount": 0,
       "visibleGapCount": 0,
@@ -450,17 +443,10 @@
         },
         {
           "start": 196,
-          "end": 203,
-          "persistedMembers": 7,
-          "minimum": [-0.5256620049476624, -0.910532534122467],
-          "maximum": [-0.4623619616031647, -0.8515976071357727]
-        },
-        {
-          "start": 203,
-          "end": 206,
-          "persistedMembers": 3,
-          "minimum": [-0.4654916524887085, -0.8321301937103271],
-          "maximum": [-0.4644484221935272, -0.7931952476501465]
+          "end": 197,
+          "persistedMembers": 1,
+          "minimum": [-0.5256620049476624, -0.8715976476669312],
+          "maximum": [-0.5256620049476624, -0.8715976476669312]
         }
       ]
     },
@@ -471,12 +457,12 @@
       "channels": [3, 1],
       "bucketFrames": 7,
       "capacity": 256,
-      "persistedFrames": 227,
-      "physicalBytesAtRead": 5448,
-      "originalFrameWindow": { "start": 0, "end": 206 },
+      "persistedFrames": 203,
+      "physicalBytesAtRead": 4872,
+      "originalFrameWindow": { "start": 0, "end": 197 },
       "unavailablePersistedFrameRange": {
-        "start": 206,
-        "end": 227,
+        "start": 197,
+        "end": 203,
         "reason": "No later coalesced preview snapshot was published before this lifecycle state."
       },
       "physicalGapCount": 0,
@@ -680,17 +666,10 @@
         },
         {
           "start": 196,
-          "end": 203,
-          "persistedMembers": 7,
-          "minimum": [-0.5256620049476624, -0.910532534122467],
-          "maximum": [-0.4623619616031647, -0.8515976071357727]
-        },
-        {
-          "start": 203,
-          "end": 206,
-          "persistedMembers": 3,
-          "minimum": [-0.4654916524887085, -0.8321301937103271],
-          "maximum": [-0.4644484221935272, -0.7931952476501465]
+          "end": 197,
+          "persistedMembers": 1,
+          "minimum": [-0.5256620049476624, -0.8715976476669312],
+          "maximum": [-0.5256620049476624, -0.8715976476669312]
         }
       ]
     },
@@ -703,11 +682,18 @@
       "capacity": 256,
       "persistedFrames": 8309,
       "physicalBytesAtRead": 199416,
-      "originalFrameWindow": { "start": 96, "end": 15941 },
+      "originalFrameWindow": { "start": 64, "end": 15910 },
       "unavailablePersistedFrameRange": null,
       "physicalGapCount": 1,
       "visibleGapCount": 1,
       "buckets": [
+        {
+          "start": 64,
+          "end": 96,
+          "persistedMembers": 32,
+          "minimum": [0.26761648058891296, -0.3240455389022827],
+          "maximum": [0.27134761214256287, -0.26772570610046387]
+        },
         {
           "start": 96,
           "end": 128,
@@ -1193,17 +1179,17 @@
         },
         {
           "start": 2304,
-          "end": 2331,
-          "persistedMembers": 27,
-          "minimum": [-0.6413875222206116, 0.6362533569335938],
+          "end": 2334,
+          "persistedMembers": 30,
+          "minimum": [-0.6417486071586609, 0.6359654664993286],
           "maximum": [-0.638258159160614, 0.6387485265731812]
         },
         {
           "start": 10016,
           "end": 10048,
-          "persistedMembers": 26,
+          "persistedMembers": 23,
           "minimum": [-0.6102035045623779, -0.7443212270736694],
-          "maximum": [-0.6071945428848267, -0.7419220805168152]
+          "maximum": [-0.607555627822876, -0.7422099709510803]
         },
         {
           "start": 10048,
@@ -2488,17 +2474,10 @@
         },
         {
           "start": 15904,
-          "end": 15936,
-          "persistedMembers": 32,
-          "minimum": [0.2806207239627838, 0.7463979125022888],
-          "maximum": [0.4386287033557892, 0.7493728995323181]
-        },
-        {
-          "start": 15936,
-          "end": 15941,
-          "persistedMembers": 5,
-          "minimum": [0.25513556599617004, 0.7494688630104065],
-          "maximum": [0.27552369236946106, 0.74985271692276]
+          "end": 15910,
+          "persistedMembers": 6,
+          "minimum": [0.4131435453891754, 0.7463979125022888],
+          "maximum": [0.4386287033557892, 0.7468777298927307]
         }
       ]
     },
@@ -2509,9 +2488,9 @@
       "channels": [3, 1],
       "bucketFrames": 7,
       "capacity": 256,
-      "persistedFrames": 201,
-      "physicalBytesAtRead": 5016,
-      "originalFrameWindow": { "start": 0, "end": 201 },
+      "persistedFrames": 205,
+      "physicalBytesAtRead": 5352,
+      "originalFrameWindow": { "start": 0, "end": 205 },
       "unavailablePersistedFrameRange": null,
       "physicalGapCount": 0,
       "visibleGapCount": 0,
@@ -2714,10 +2693,17 @@
         },
         {
           "start": 196,
-          "end": 201,
-          "persistedMembers": 5,
+          "end": 203,
+          "persistedMembers": 7,
           "minimum": [-0.5256620049476624, -0.910532534122467],
-          "maximum": [-0.4623619616031647, -0.8715976476669312]
+          "maximum": [-0.4623619616031647, -0.8515976071357727]
+        },
+        {
+          "start": 203,
+          "end": 205,
+          "persistedMembers": 2,
+          "minimum": [-0.46497002243995667, -0.8321301937103271],
+          "maximum": [-0.4644484221935272, -0.8126627206802368]
         }
       ]
     }

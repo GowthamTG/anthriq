@@ -15,6 +15,8 @@
     "cli": "node core/cli.ts",
     "typecheck": "tsc --noEmit",
     "check:clean": "node scripts/check-clean-worktree.mjs",
+    "evidence:preview": "node scripts/preview-evidence.mjs",
+    "evidence:validate": "node scripts/validate-json-schema.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

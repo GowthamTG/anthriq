@@ -13,8 +13,19 @@ export function RuntimeBanner() {
       <strong>Public demonstration:</strong> this is the genuine acquisition pipeline with shared
       controls and persistent hosted storage. Captures are limited to{' '}
       {runtime.limits.maximumDurationSeconds} seconds, the oldest of{' '}
-      {runtime.limits.retainedRecordings} temporary recordings rotates out, and the free-tier
-      service may need a moment to wake.
+      {runtime.limits.retainedRecordings} temporary recordings rotates out, and the hosted service
+      sleeps when idle, so the first request after a quiet period may need a moment to wake. For the
+      unbounded local experience (continuous capture, full diagnostics, no shared state), clone and
+      run it yourself from{' '}
+      <a
+        href="https://github.com/GowthamTG/anthriq"
+        target="_blank"
+        rel="noreferrer"
+        className="underline decoration-dotted underline-offset-2 hover:text-[#f5ecd2]"
+      >
+        github.com/GowthamTG/anthriq
+      </a>
+      .
     </aside>
   );
 }

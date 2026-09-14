@@ -204,7 +204,7 @@ export default function Verify() {
 
   return (
     <>
-      <WorkbenchHeader current="verify" connection={connection} />
+      <WorkbenchHeader current="verify" connection={connection} runtimeMode={runtime?.mode} />
       <main
         id="main-content"
         tabIndex={-1}

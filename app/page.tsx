@@ -288,7 +288,12 @@ export default function Acquire() {
 
   return (
     <>
-      <WorkbenchHeader current="acquire" connection={connection} sessionId={clientId} />
+      <WorkbenchHeader
+        current="acquire"
+        connection={connection}
+        sessionId={clientId}
+        runtimeMode={runtime?.mode}
+      />
 
       <main
         id="main-content"

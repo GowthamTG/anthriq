@@ -1,0 +1,9 @@
+{
+  "format": "SCOPE-BROWSER-ISOLATION-FAILURE/1",
+  "result": "FAIL",
+  "case": "stalled-sse-reader",
+  "documentedMaximumSocketWritableLengthBytes": 65536,
+  "observedMaximumSocketWritableLengthBytes": 87562,
+  "eventualBackpressureDisconnects": 1,
+  "disposition": "Preserved as the discovery evidence for issue #43; rerun the full matrix after its fix."
+}

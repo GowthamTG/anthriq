@@ -1,0 +1,241 @@
+{
+  "format": "SCOPE-BROWSER-ISOLATION-EVIDENCE/1",
+  "createdAt": "2026-09-14T04:01:16.126Z",
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "architecture": "arm64",
+    "cpu": "Apple M5 Pro",
+    "logicalCpuCount": 15,
+    "totalMemoryBytes": 25769803776,
+    "node": "v24.21.0",
+    "browser": "Playwright Chromium"
+  },
+  "configuration": { "channels": 32, "sampleRate": 4000, "seconds": 5 },
+  "recordingRoot": "recordings/issue-36-2026-09-14T04-00-44.944Z",
+  "engineeringTolerances": {
+    "note": "Project evidence thresholds, not requirements quoted from the assessment.",
+    "completionImpact": "no more than max(5% of no-observer elapsed time, 250 ms)",
+    "sourceMaximumLag": "no more than max(2x no-observer maximum lag, 25 ms)",
+    "recordedLoss": "zero frames",
+    "maximumObservers": 8,
+    "maximumSocketWritableLengthBytes": 65536,
+    "cleanupMs": 2500
+  },
+  "cases": [
+    {
+      "name": "no-observer",
+      "recordingId": "e35561fd-d125-4e77-9210-faa3c4ae8965",
+      "elapsedMs": 5150.90175,
+      "expectedFrames": 20000,
+      "scheduledFrames": 20000,
+      "emittedFrames": 20000,
+      "persistedFrames": 20000,
+      "lostFrames": 0,
+      "sourceTiming": {
+        "elapsedSeconds": 5.000260291,
+        "pacingErrorFrames": 0,
+        "emissionDeficitFrames": 0,
+        "emissionRateFramesPerSecond": 4002.3838279345896,
+        "maxEmissionGapMs": 7.499709000000188
+      },
+      "sourceMaxLagMs": 6.25,
+      "peakOutstandingBytes": 3400,
+      "peakQueueBytes": 3400,
+      "generatorPeakRssBytes": 87326720,
+      "recorderPeakRssBytes": 97714176,
+      "serverPeakRssBytes": 138985472,
+      "browserPeakHeapBytes": null,
+      "peakActiveClients": 0,
+      "peakWritableLengthBytes": 0,
+      "observerCleanupMs": 2.7547080000003916,
+      "reconnectCheck": null,
+      "commandAccounting": { "acquisitionStartRequests": 1, "stopRequests": 0 },
+      "diagnosticsDelta": {
+        "opened": 0,
+        "closed": 0,
+        "replacements": 0,
+        "backpressureDisconnects": 0
+      }
+    },
+    {
+      "name": "normal-observer",
+      "recordingId": "5f12dde7-ea1c-4079-a5fb-d4b6548a04ad",
+      "elapsedMs": 5138.196459,
+      "expectedFrames": 20000,
+      "scheduledFrames": 20000,
+      "emittedFrames": 20000,
+      "persistedFrames": 20000,
+      "lostFrames": 0,
+      "sourceTiming": {
+        "elapsedSeconds": 5.004971708,
+        "pacingErrorFrames": 0,
+        "emissionDeficitFrames": 0,
+        "emissionRateFramesPerSecond": 3248.957896754598,
+        "maxEmissionGapMs": 6.2397079999999825
+      },
+      "sourceMaxLagMs": 6.25,
+      "peakOutstandingBytes": 3400,
+      "peakQueueBytes": 3400,
+      "generatorPeakRssBytes": 87736320,
+      "recorderPeakRssBytes": 101351424,
+      "serverPeakRssBytes": 145981440,
+      "browserPeakHeapBytes": 7578159,
+      "peakActiveClients": 1,
+      "peakWritableLengthBytes": 0,
+      "observerCleanupMs": 4.513957999999548,
+      "reconnectCheck": null,
+      "commandAccounting": { "acquisitionStartRequests": 1, "stopRequests": 0 },
+      "diagnosticsDelta": {
+        "opened": 1,
+        "closed": 1,
+        "replacements": 0,
+        "backpressureDisconnects": 0
+      }
+    },
+    {
+      "name": "stalled-sse-reader",
+      "recordingId": "ef42f9b2-005a-4637-abdb-de76b61bf4be",
+      "elapsedMs": 5145.356,
+      "expectedFrames": 20000,
+      "scheduledFrames": 20000,
+      "emittedFrames": 20000,
+      "persistedFrames": 20000,
+      "lostFrames": 0,
+      "sourceTiming": {
+        "elapsedSeconds": 5.005294084,
+        "pacingErrorFrames": 0,
+        "emissionDeficitFrames": 0,
+        "emissionRateFramesPerSecond": 3939.3877177003587,
+        "maxEmissionGapMs": 7.060667
+      },
+      "sourceMaxLagMs": 6.5,
+      "peakOutstandingBytes": 3536,
+      "peakQueueBytes": 3536,
+      "generatorPeakRssBytes": 87293952,
+      "recorderPeakRssBytes": 99794944,
+      "serverPeakRssBytes": 152682496,
+      "browserPeakHeapBytes": null,
+      "peakActiveClients": 1,
+      "peakWritableLengthBytes": 58314,
+      "observerCleanupMs": 2.076958999999988,
+      "reconnectCheck": null,
+      "commandAccounting": { "acquisitionStartRequests": 1, "stopRequests": 0 },
+      "diagnosticsDelta": {
+        "opened": 1,
+        "closed": 1,
+        "replacements": 0,
+        "backpressureDisconnects": 1
+      }
+    },
+    {
+      "name": "reconnect-churn",
+      "recordingId": "58f68774-004f-4634-aa37-147352b70865",
+      "elapsedMs": 5153.0088749999995,
+      "expectedFrames": 20000,
+      "scheduledFrames": 20000,
+      "emittedFrames": 20000,
+      "persistedFrames": 20000,
+      "lostFrames": 0,
+      "sourceTiming": {
+        "elapsedSeconds": 5.005540292,
+        "pacingErrorFrames": 0,
+        "emissionDeficitFrames": 0,
+        "emissionRateFramesPerSecond": 3949.7965417946543,
+        "maxEmissionGapMs": 9.914124999999995
+      },
+      "sourceMaxLagMs": 10,
+      "peakOutstandingBytes": 5440,
+      "peakQueueBytes": 5440,
+      "generatorPeakRssBytes": 87343104,
+      "recorderPeakRssBytes": 99909632,
+      "serverPeakRssBytes": 128188416,
+      "browserPeakHeapBytes": null,
+      "peakActiveClients": 1,
+      "peakWritableLengthBytes": 0,
+      "observerCleanupMs": 1.367500000000291,
+      "reconnectCheck": {
+        "reconnects": 5,
+        "nondecreasingPersistedFrames": true
+      },
+      "commandAccounting": { "acquisitionStartRequests": 1, "stopRequests": 0 },
+      "diagnosticsDelta": {
+        "opened": 6,
+        "closed": 6,
+        "replacements": 0,
+        "backpressureDisconnects": 0
+      }
+    },
+    {
+      "name": "multiple-observers",
+      "recordingId": "4e068fa9-9fdd-45cb-b2f0-c319aea1bda6",
+      "elapsedMs": 5177.414457999999,
+      "expectedFrames": 20000,
+      "scheduledFrames": 20000,
+      "emittedFrames": 20000,
+      "persistedFrames": 20000,
+      "lostFrames": 0,
+      "sourceTiming": {
+        "elapsedSeconds": 5.004864125,
+        "pacingErrorFrames": 0,
+        "emissionDeficitFrames": 0,
+        "emissionRateFramesPerSecond": 3983.106795750184,
+        "maxEmissionGapMs": 7.357749999999999
+      },
+      "sourceMaxLagMs": 6.75,
+      "peakOutstandingBytes": 3672,
+      "peakQueueBytes": 3672,
+      "generatorPeakRssBytes": 88080384,
+      "recorderPeakRssBytes": 103104512,
+      "serverPeakRssBytes": 139771904,
+      "browserPeakHeapBytes": 57184925,
+      "peakActiveClients": 8,
+      "peakWritableLengthBytes": 0,
+      "observerCleanupMs": 12.400708000001032,
+      "reconnectCheck": null,
+      "commandAccounting": { "acquisitionStartRequests": 1, "stopRequests": 0 },
+      "diagnosticsDelta": {
+        "opened": 8,
+        "closed": 8,
+        "replacements": 0,
+        "backpressureDisconnects": 0
+      }
+    },
+    {
+      "name": "busy-browser",
+      "recordingId": "53154f84-8da3-4747-9050-4f52aa282a79",
+      "elapsedMs": 5155.747458000002,
+      "expectedFrames": 20000,
+      "scheduledFrames": 20000,
+      "emittedFrames": 20000,
+      "persistedFrames": 20000,
+      "lostFrames": 0,
+      "sourceTiming": {
+        "elapsedSeconds": 5.004445167,
+        "pacingErrorFrames": 0,
+        "emissionDeficitFrames": 0,
+        "emissionRateFramesPerSecond": 4005.8428536233196,
+        "maxEmissionGapMs": 6.182917
+      },
+      "sourceMaxLagMs": 6.25,
+      "peakOutstandingBytes": 3400,
+      "peakQueueBytes": 3400,
+      "generatorPeakRssBytes": 87277568,
+      "recorderPeakRssBytes": 100368384,
+      "serverPeakRssBytes": 132661248,
+      "browserPeakHeapBytes": 10923739,
+      "peakActiveClients": 1,
+      "peakWritableLengthBytes": 0,
+      "observerCleanupMs": 3.141541999997571,
+      "reconnectCheck": null,
+      "commandAccounting": { "acquisitionStartRequests": 1, "stopRequests": 0 },
+      "diagnosticsDelta": {
+        "opened": 1,
+        "closed": 1,
+        "replacements": 0,
+        "backpressureDisconnects": 0
+      }
+    }
+  ],
+  "result": "PASS"
+}

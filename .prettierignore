@@ -6,3 +6,6 @@ test-results/
 playwright-report/
 *.png
 package-lock.json
+# Generated and rewritten by Next.js. Keep its exact generated syntax so a
+# production build and the formatter cannot disagree about tracked content.
+next-env.d.ts

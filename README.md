@@ -93,9 +93,12 @@ coalesces updates while a socket drains, and disconnects a socket that remains b
 seconds. A reconnect fetches a fresh snapshot before resuming SSE. Skipped or coalesced screen
 updates are display loss, never missing recorded samples.
 
-The server binds only to `127.0.0.1`. `PORT` overrides port 3000, and `SCOPE_RECORDINGS_DIR`
+The server binds to `127.0.0.1` by default. `PORT` overrides port 3000, and `SCOPE_RECORDINGS_DIR`
 overrides the default `recordings` directory. Use a new writable location; recordings are never
-overwritten. These environment variables work for both development and production launch.
+overwritten. `SCOPE_HOST` changes the bind address; public demo mode requires the explicit pair
+`SCOPE_DEMO_MODE=public` and `SCOPE_HOST=0.0.0.0`, which also activates its resource and
+data-exposure safeguards. These environment variables work for both development and production
+launch.
 
 ## Recordings library
 
@@ -447,9 +450,9 @@ Result:            PASS
   The system detects partial/corrupt files instead of claiming automatic repair.
 - Playback is forward-only at 0.1x-8x. The assessment wording is interpreted as slower and faster
   positive multiples, not reverse chronology.
-- One local owner, one acquisition, and one playback session are deliberate assessment boundaries.
-  Authentication, distributed acquisition, public hosting, and remote durable storage require a
-  separate product requirement.
+- One owner, one acquisition, and one playback session are deliberate assessment boundaries. The
+  optional hosted mode discloses that shared state and bounds anonymous use; authentication,
+  distributed acquisition, and horizontally scaled storage require a separate product requirement.
 - Hard real-time scheduling, physical-unit calibration, and sustained equivalence on unmeasured
   platforms are not claimed.
 
@@ -457,7 +460,7 @@ See the [decision audit](docs/decision-audit.md), [ADRs](docs/adr/), complete
 [known-limitations statement](docs/evidence/t17/known-limitations.md), and final
 [acceptance matrix](docs/acceptance-scenarios.md). With additional time, the highest-value work is
 checksummed recovery segments, multi-platform sustained measurements, and a versioned analytical
-storage layout. Optional public hosting remains T18.
+storage layout. See the T18 hosting guide for the optional assessment-window public demo.
 
 ## Demonstration and submission
 

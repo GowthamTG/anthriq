@@ -26,7 +26,7 @@ test('capture, reload, stop, and inspect a real recording', async ({ page, reque
   await page.getByRole('button', { name: 'Stop acquisition' }).click();
   await expect(page.getByTestId('acquisition-state')).toHaveText('Completed');
   await expect(page.getByRole('heading', { name: 'Recording saved' })).toBeVisible();
-  await expect(page.getByText('Integrity not yet verified')).toBeVisible();
+  await expect(page.getByText('Integrity not verified', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Inspect recording' }).click();
   await expect(page.getByRole('heading', { name: 'Recording details' })).toBeVisible();
   await expect(page.getByTestId('format')).toHaveText('SCOPE/1');
@@ -247,6 +247,11 @@ test('timed capture stays stopping while accepted writes drain', async ({ page, 
   await request.post('/api/acquisitions', { data: { seconds: 0.1, writeDelayMs: 200 } });
   await page.goto('/');
   await expect(page.getByTestId('acquisition-state')).toHaveText('Stopping');
+  if (process.env.SCOPE_CAPTURE_T14_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t14/desktop-stopping.png'),
+      fullPage: true,
+    });
   expect((await request.post('/api/acquisitions')).status()).toBe(409);
   await expect(page.getByTestId('acquisition-state')).toHaveText('Completed');
   const state = await (await request.get('/api/state')).json();
@@ -269,7 +274,14 @@ test('a failed capture retains its actionable cause in saved inspection', async 
   process.kill(state.metadata.processes.generator, 'SIGKILL');
   await page.goto('/');
   await expect(page.getByTestId('acquisition-state')).toHaveText('Failed');
-  await page.goto(`/recordings?id=${id}`);
+  await expect(page.getByRole('button', { name: 'Inspect readable recording' })).toBeVisible();
+  if (process.env.SCOPE_CAPTURE_T14_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t14/desktop-failed.png'),
+      fullPage: true,
+    });
+  await page.getByRole('link', { name: 'Open in Recordings' }).click();
+  await expect(page).toHaveURL(new RegExp(`/recordings\\?id=${id}$`));
   await expect(page.getByTestId('inspection-failure')).toContainText(
     'Generator exited unexpectedly',
   );

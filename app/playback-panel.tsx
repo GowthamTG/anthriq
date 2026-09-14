@@ -3,6 +3,8 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { PlaybackCommand, PlaybackState, RecordingInspection } from '../core/contracts';
+import { requestJson } from './http';
+import { useServiceEvents } from './use-service-events';
 
 const SignalTrace = dynamic(() => import('./signal-trace').then((module) => module.SignalTrace), {
   ssr: false,
@@ -35,26 +37,22 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
   const [timelineDraft, setTimelineDraft] = useState(0);
   const [editingTimeline, setEditingTimeline] = useState(false);
   const [speedValue, setSpeedValue] = useState('1');
+  const connection = useServiceEvents({
+    url: playable ? '/api/events' : null,
+    handlers: { playback: (value) => setState(value as PlaybackState) },
+  });
+  const connected = connection === 'live';
 
   useEffect(() => {
     if (!playable) return;
     let active = true;
     const controller = new AbortController();
-    const events = new EventSource('/api/events');
-    events.addEventListener('playback', (event) => {
-      if (active) setState(JSON.parse(event.data));
-    });
-    fetch('/api/playback', {
+    requestJson<PlaybackState>('/api/playback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'open', recordingId: details.id }),
       signal: controller.signal,
     })
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Playback could not be opened');
-        return result as PlaybackState;
-      })
       .then((result) => {
         if (active) setState(result);
       })
@@ -67,7 +65,6 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
     return () => {
       active = false;
       controller.abort();
-      events.close();
     };
   }, [details.id, playable]);
 
@@ -85,13 +82,11 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
     setBusy(true);
     setError('');
     try {
-      const response = await fetch('/api/playback', {
+      const result = await requestJson<PlaybackState>('/api/playback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `Playback ${request.action} failed`);
       setState(result);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -131,6 +126,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
     }
     void command({ action: 'channels', recordingId: details.id, channels });
   }
+  const commandsUnavailable = busy || !connected;
 
   return (
     <section className="mt-8 border-t border-line pt-6" aria-label="Recording playback">
@@ -169,6 +165,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
           <button
             className="inspect-button mt-3"
             onClick={() => void command({ action: 'open', recordingId: details.id })}
+            disabled={commandsUnavailable}
           >
             Reopen this playback
           </button>
@@ -179,6 +176,14 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
           {error}
         </p>
       )}
+      {playable && !connected && (
+        <p role="status" className="notice mt-4">
+          {connection === 'offline'
+            ? 'Playback controls are disconnected.'
+            : 'Restoring playback controls.'}{' '}
+          The last displayed position may be stale.
+        </p>
+      )}
       {current && (
         <>
           <div className="mt-5 flex flex-wrap gap-3">
@@ -186,7 +191,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
               className="start-button min-w-32"
               onClick={() => void command({ action: 'play', recordingId: details.id })}
               disabled={
-                busy ||
+                commandsUnavailable ||
                 current.status === 'playing' ||
                 current.status === 'ended' ||
                 current.status === 'error'
@@ -197,14 +202,14 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
             <button
               className="stop-button min-w-32"
               onClick={() => void command({ action: 'pause', recordingId: details.id })}
-              disabled={busy || current.status !== 'playing'}
+              disabled={commandsUnavailable || current.status !== 'playing'}
             >
               Pause
             </button>
             <button
               className="inspect-button min-w-32"
               onClick={() => void command({ action: 'restart', recordingId: details.id })}
-              disabled={busy}
+              disabled={commandsUnavailable}
             >
               Restart
             </button>
@@ -224,7 +229,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
               max={current.expectedFrames}
               step="1"
               value={timelineDraft}
-              disabled={busy}
+              disabled={commandsUnavailable}
               onPointerDown={() => setEditingTimeline(true)}
               onChange={(event) => setTimelineDraft(Number(event.target.value))}
               onPointerUp={commitTimeline}
@@ -250,7 +255,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
                   onChange={(event) =>
                     setSeekMode(event.target.value as 'position' | 'positionSeconds')
                   }
-                  disabled={busy}
+                  disabled={commandsUnavailable}
                 >
                   <option value="position">Original frame</option>
                   <option value="positionSeconds">Elapsed seconds</option>
@@ -266,10 +271,14 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
                   step={seekMode === 'position' ? '1' : '0.001'}
                   value={seekValue}
                   onChange={(event) => setSeekValue(event.target.value)}
-                  disabled={busy}
+                  disabled={commandsUnavailable}
                 />
               </label>
-              <button className="inspect-button" onClick={submitExactSeek} disabled={busy}>
+              <button
+                className="inspect-button"
+                onClick={submitExactSeek}
+                disabled={commandsUnavailable}
+              >
                 Seek
               </button>
             </div>
@@ -277,17 +286,18 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
 
           <div className="mt-5 border border-line bg-[#171917] p-4">
             <div className="flex flex-wrap items-end gap-4">
-              <div>
+              <div role="group" aria-label="Playback speed presets">
                 <p className="micro">PLAYBACK SPEED</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {SPEED_PRESETS.map((speed) => (
                     <button
                       key={speed}
                       className={current.speed === speed ? 'start-button' : 'inspect-button'}
+                      aria-pressed={current.speed === speed}
                       onClick={() =>
                         void command({ action: 'speed', recordingId: details.id, speed })
                       }
-                      disabled={busy}
+                      disabled={commandsUnavailable}
                     >
                       {speed}×
                     </button>
@@ -306,7 +316,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
                     step="0.1"
                     value={speedValue}
                     onChange={(event) => setSpeedValue(event.target.value)}
-                    disabled={busy}
+                    disabled={commandsUnavailable}
                   />
                   <button
                     className="inspect-button"
@@ -317,7 +327,7 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
                         speed: Number(speedValue),
                       })
                     }
-                    disabled={busy}
+                    disabled={commandsUnavailable}
                   >
                     Apply
                   </button>
@@ -326,7 +336,10 @@ export function PlaybackPanel({ details }: { details: RecordingInspection }) {
             </div>
           </div>
 
-          <fieldset className="mt-5 border border-line bg-[#171917] p-4" disabled={busy}>
+          <fieldset
+            className="mt-5 border border-line bg-[#171917] p-4"
+            disabled={commandsUnavailable}
+          >
             <legend className="micro px-1">
               PLAYBACK CHANNELS / {current.channels.length} SELECTED
             </legend>

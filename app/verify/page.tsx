@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { LibraryPage } from '../../core/library';
 import type {
   DiagnosticScenario,
-  RecordingInspection,
   VerificationReport,
   VerificationState,
 } from '../../core/contracts';
+import { requestJson } from '../http';
+import { useRecordingLibrary } from '../use-recording-library';
+import { useServiceEvents } from '../use-service-events';
+import { WorkbenchHeader } from '../workbench-header';
 
 const number = (value: number | null | undefined) =>
   value == null ? 'Unknown' : value.toLocaleString('en-US');
@@ -52,84 +54,45 @@ type ScenarioRun = {
 };
 
 export default function Verify() {
-  const [page, setPage] = useState<LibraryPage | null>(null);
-  const [cursor, setCursor] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
-  const [details, setDetails] = useState<RecordingInspection | null>(null);
   const [job, setJob] = useState<VerificationState>(initialState);
   const [savedReport, setSavedReport] = useState<VerificationReport | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [refresh, setRefresh] = useState(0);
   const [scenarioRun, setScenarioRun] = useState<ScenarioRun | null>(null);
   const reportRevision = job.report?.checkedAt ?? '';
+  const {
+    page,
+    cursor,
+    setCursor,
+    selected,
+    select,
+    details,
+    loading,
+    inspecting,
+    listError,
+    detailError,
+    refresh,
+  } = useRecordingLibrary(reportRevision);
+  const connection = useServiceEvents({
+    url: '/api/events',
+    snapshot: { url: '/api/verification', apply: (value) => setJob(value as VerificationState) },
+    handlers: { verification: (value) => setJob(value as VerificationState) },
+  });
+  const connected = connection === 'live';
 
   useEffect(() => {
-    const readSelection = () => setSelected(new URLSearchParams(window.location.search).get('id'));
-    readSelection();
-    window.addEventListener('popstate', readSelection);
-    return () => window.removeEventListener('popstate', readSelection);
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/verification')
-      .then((response) => response.json())
-      .then(setJob)
-      .catch(() => {});
-    const events = new EventSource('/api/events');
-    events.addEventListener('verification', (event) => setJob(JSON.parse(event.data)));
-    return () => events.close();
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError('');
-    fetch(`/api/recordings?limit=10&cursor=${encodeURIComponent(cursor)}`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error);
-        return result as LibraryPage;
-      })
-      .then(setPage)
-      .catch((cause) => {
-        if (!controller.signal.aborted) setError(cause.message);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [cursor, refresh]);
-
-  useEffect(() => {
-    setDetails(null);
     setSavedReport(null);
-    setError('');
-    if (!selected) return;
+    if (!selected || !details || details.verification.status === 'unverified') return;
     const controller = new AbortController();
-    fetch(`/api/recordings/${encodeURIComponent(selected)}`, { signal: controller.signal })
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error);
-        return result as RecordingInspection;
-      })
-      .then(async (recording) => {
-        setDetails(recording);
-        if (recording.verification.status !== 'unverified') {
-          const response = await fetch(
-            `/api/recordings/${encodeURIComponent(selected)}/verification`,
-            { signal: controller.signal },
-          );
-          if (response.ok) setSavedReport(await response.json());
-        }
-      })
+    requestJson<VerificationReport>(
+      `/api/recordings/${encodeURIComponent(selected)}/verification`,
+      { signal: controller.signal },
+    )
+      .then(setSavedReport)
       .catch((cause) => {
         if (!controller.signal.aborted) setError(cause.message);
       });
     return () => controller.abort();
-  }, [selected, refresh, reportRevision]);
+  }, [selected, details, reportRevision]);
 
   const creating = job.status === 'creating';
   const running = job.status === 'running';
@@ -146,20 +109,22 @@ export default function Verify() {
     job.status === 'failed-operational' && job.recordingId === selected;
   const statusLabel = !selected
     ? 'Awaiting selection'
-    : creating && job.sourceRecordingId === selected
-      ? 'Creating diagnostic'
-      : runningHere
-        ? 'Verification running'
-        : operationalFailureHere
-          ? 'Operational failure'
-          : stale
-            ? 'Report stale'
-            : report?.result === 'PASS'
-              ? 'Integrity verified'
-              : report?.result === 'FAIL'
-                ? 'Integrity failed'
-                : 'Not yet verified';
-  const canVerify = details?.status === 'completed' && !busy;
+    : inspecting
+      ? 'Loading recording'
+      : creating && job.sourceRecordingId === selected
+        ? 'Creating diagnostic'
+        : runningHere
+          ? 'Verification running'
+          : operationalFailureHere
+            ? 'Operational failure'
+            : stale
+              ? 'Report stale'
+              : report?.result === 'PASS'
+                ? 'Integrity verified'
+                : report?.result === 'FAIL'
+                  ? 'Integrity failed'
+                  : 'Not yet verified';
+  const canVerify = details?.status === 'completed' && !busy && connected;
   const selectedEntry = page?.items.find((item) => item.id === selected);
   const eligibleSource = details?.status === 'completed' && !details.diagnostic;
   const scenarioState = scenarioRun
@@ -181,76 +146,68 @@ export default function Verify() {
         : 'Ready'
     : 'Ready';
 
-  function select(id: string) {
-    setSelected(id);
-    window.history.pushState(null, '', `/verify?id=${encodeURIComponent(id)}`);
-  }
-
   async function start() {
-    if (!selected) return;
+    if (!selected || !connected) return;
     setError('');
-    const response = await fetch('/api/verifications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recordingId: selected }),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      setError(result.error);
-      return;
+    try {
+      setJob(
+        (current) =>
+          ({
+            ...current,
+            status: 'creating',
+            recordingId: selected,
+            error: null,
+          }) as VerificationState,
+      );
+      setJob(
+        await requestJson<VerificationState>('/api/verifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recordingId: selected }),
+        }),
+      );
+    } catch (cause) {
+      setJob((current) => ({ ...current, status: 'idle' }));
+      setError(cause instanceof Error ? cause.message : 'Verification request failed');
     }
-    setJob(result);
   }
 
   async function startScenario(scenario: DiagnosticScenario) {
-    if (!selected || !eligibleSource) return;
+    if (!selected || !eligibleSource || !connected) return;
     const sourceRecordingId = selected;
     setError('');
     setScenarioRun({ scenario, sourceRecordingId, recordingId: null, error: null });
-    const response = await fetch('/api/verification-scenarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourceRecordingId, scenario }),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      setScenarioRun({ scenario, sourceRecordingId, recordingId: null, error: result.error });
-      return;
-    }
-    const state = result as VerificationState;
-    setJob(state);
-    setScenarioRun({ scenario, sourceRecordingId, recordingId: state.recordingId, error: null });
-    if (state.recordingId) {
-      setSelected(state.recordingId);
-      setCursor('');
-      setRefresh((value) => value + 1);
-      window.history.pushState(null, '', `/verify?id=${encodeURIComponent(state.recordingId)}`);
+    try {
+      const state = await requestJson<VerificationState>('/api/verification-scenarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceRecordingId, scenario }),
+      });
+      setJob(state);
+      setScenarioRun({ scenario, sourceRecordingId, recordingId: state.recordingId, error: null });
+      if (state.recordingId) {
+        select(state.recordingId);
+        setCursor('');
+        refresh();
+      }
+    } catch (cause) {
+      setScenarioRun({
+        scenario,
+        sourceRecordingId,
+        recordingId: null,
+        error: cause instanceof Error ? cause.message : 'Scenario creation failed',
+      });
     }
   }
 
   return (
     <>
-      <header className="topbar flex h-[86px] items-center justify-between border-b border-line px-12 max-[760px]:h-[70px] max-[760px]:px-5">
-        <a href="/" className="brand flex items-center gap-3 text-xl font-extrabold tracking-[3px]">
-          <span
-            className="grid size-[30px] place-items-center bg-accent text-[#111]"
-            aria-hidden="true"
-          >
-            S
-          </span>
-          SCOPE
-        </a>
-        <nav aria-label="Workspace" className="flex items-center gap-6 text-xs">
-          <a href="/" className="text-muted hover:text-white">
-            Acquire
-          </a>
-          <a href="/recordings" className="text-muted hover:text-white">
-            Recordings
-          </a>
-          <span aria-current="page">Verify</span>
-        </nav>
-      </header>
-      <main className="mx-auto max-w-[1456px] px-12 py-12 max-[760px]:px-5 max-[760px]:py-8">
+      <WorkbenchHeader current="verify" connection={connection} />
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto max-w-[1456px] px-12 py-12 max-[760px]:px-5 max-[760px]:py-8"
+      >
         <p className="eyebrow">VERIFY / PHYSICAL RECORD SCAN</p>
         <div className="mb-9 flex flex-wrap items-end justify-between gap-5">
           <div>
@@ -270,9 +227,18 @@ export default function Verify() {
             {statusLabel}
           </span>
         </div>
-        {error && (
+        {!connected && (
+          <div role="status" className="notice">
+            {connection === 'offline'
+              ? 'The local verification service is unavailable.'
+              : 'Reconnecting to the local verification service.'}{' '}
+            Displayed results may be stale; verification controls remain disabled until the current
+            state is restored.
+          </div>
+        )}
+        {(error || listError || detailError) && (
           <div role="alert" className="notice error">
-            {error}
+            {error || detailError || listError}
           </div>
         )}
         {job.status === 'failed-operational' && job.recordingId === selected && (
@@ -294,6 +260,8 @@ export default function Verify() {
             </div>
             <output
               data-testid="scenario-state"
+              role={scenarioRun?.error ? 'alert' : 'status'}
+              aria-live={scenarioRun?.error ? 'assertive' : 'polite'}
               className={`font-mono text-[10px] uppercase tracking-[.08em] ${scenarioRun?.error ? 'text-[#ffba89]' : 'text-muted'}`}
             >
               {scenarioState}
@@ -306,7 +274,7 @@ export default function Verify() {
                 <p className="my-4 text-xs leading-relaxed text-muted">{scenario.description}</p>
                 <button
                   className="mt-auto border border-[#78826e] px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[.06em] text-white hover:bg-[#2e3429] disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={!eligibleSource || busy}
+                  disabled={!eligibleSource || busy || !connected}
                   onClick={() => startScenario(scenario.id)}
                 >
                   Create {scenario.name} scenario ↗
@@ -329,10 +297,7 @@ export default function Verify() {
           >
             <div className="flex items-center justify-between border-b border-line p-5">
               <span className="micro">LOCAL BUNDLES</span>
-              <button
-                className="font-mono text-[10px] text-muted"
-                onClick={() => setRefresh((value) => value + 1)}
-              >
+              <button className="font-mono text-[10px] text-muted" onClick={refresh}>
                 REFRESH ↻
               </button>
             </div>
@@ -443,15 +408,17 @@ export default function Verify() {
                   >
                     {runningHere
                       ? 'Scanning records…'
-                      : busy
-                        ? 'Another check is running'
-                        : details?.status !== 'completed'
-                          ? 'Recording not completed'
-                          : stale
-                            ? 'Run fresh verification'
-                            : report
-                              ? 'Verify again'
-                              : 'Start verification'}
+                      : inspecting
+                        ? 'Loading recording…'
+                        : busy
+                          ? 'Another check is running'
+                          : details?.status !== 'completed'
+                            ? 'Recording not completed'
+                            : stale
+                              ? 'Run fresh verification'
+                              : report
+                                ? 'Verify again'
+                                : 'Start verification'}
                     <span aria-hidden="true">↗</span>
                   </button>
                 </div>

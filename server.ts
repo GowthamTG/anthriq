@@ -21,6 +21,7 @@ import {
 } from './core/contracts.ts';
 import { csvLines } from './core/export.ts';
 import { PlaybackOwner } from './core/playback.ts';
+import { eventFitsClientBuffer, MAX_CLIENT_BUFFER_BYTES } from './core/event-buffer.ts';
 
 const dev = process.argv.includes('--dev');
 const port = Number(process.env.PORT || 3000);
@@ -34,7 +35,6 @@ await app.prepare();
 const handle = app.getRequestHandler();
 const MAX_EVENT_CLIENTS = 8;
 const MAX_EVENT_BYTES = 48 * 1024;
-const MAX_CLIENT_BUFFER_BYTES = 64 * 1024;
 const MAX_DRAIN_MS = 2000;
 type EventClient = {
   res: ServerResponse;
@@ -141,12 +141,9 @@ function eventBody(client: EventClient) {
 
 function event(client: EventClient) {
   if (client.res.destroyed) return;
-  if (client.draining || client.res.writableLength > MAX_CLIENT_BUFFER_BYTES) {
-    if (client.res.writableLength > MAX_CLIENT_BUFFER_BYTES) client.res.destroy();
-    return;
-  }
+  if (client.draining) return;
   const body = eventBody(client);
-  if (Buffer.byteLength(body) > MAX_CLIENT_BUFFER_BYTES) {
+  if (!eventFitsClientBuffer(client.res.writableLength, Buffer.byteLength(body))) {
     client.res.destroy();
     return;
   }

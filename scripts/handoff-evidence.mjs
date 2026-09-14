@@ -16,7 +16,7 @@ export const HANDOFF_WINDOWS = [
   { name: 'end', start: 7996, end: 8000 },
 ];
 
-export function handoffCommandPlan(skipBrowserInstall = false) {
+export function handoffCommandPlan() {
   return [
     ['npm', ['ci']],
     ['npm', ['run', 'format:check']],
@@ -26,7 +26,7 @@ export function handoffCommandPlan(skipBrowserInstall = false) {
     ['npm', ['run', 'format:check']],
     ['npm', ['run', 'check:clean']],
     ['npm', ['run', 'check:links']],
-    ...(skipBrowserInstall ? [] : [['npx', ['playwright', 'install', 'chromium']]]),
+    ['npx', ['playwright', 'install', 'chromium']],
     ['npm', ['run', 'test:browser']],
     ['npm', ['run', 'evidence:validate-acquisition']],
     ['npm', ['run', 'evidence:validate-long-recording']],
@@ -53,9 +53,8 @@ export function parseHandoffArguments(argv) {
   return {
     source: options.source,
     ref: options.ref,
-    output: resolve(options.output),
+    outputDirectory: resolve(options.output),
     workload: options.workload,
-    skipBrowserInstall: options['skip-browser-install'] === 'true',
   };
 }
 
@@ -64,31 +63,45 @@ export function boundedAppend(previous, chunk, limit = HANDOFF_OUTPUT_LIMIT_BYTE
   return combined.length <= limit ? combined : combined.subarray(combined.length - limit);
 }
 
+export function createOutputCollector({ echo = false } = {}) {
+  const hashes = { stdout: createHash('sha256'), stderr: createHash('sha256') };
+  const bytes = { stdout: 0, stderr: 0 };
+  const tails = { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
+  return {
+    write(stream, chunk) {
+      bytes[stream] += chunk.length;
+      hashes[stream].update(chunk);
+      tails[stream] = boundedAppend(tails[stream], chunk);
+      if (echo) process[stream].write(chunk);
+    },
+    tail(stream) {
+      return tails[stream].toString('utf8');
+    },
+    summary() {
+      return {
+        stdoutBytes: bytes.stdout,
+        stderrBytes: bytes.stderr,
+        stdoutSha256: hashes.stdout.digest('hex'),
+        stderrSha256: hashes.stderr.digest('hex'),
+      };
+    },
+  };
+}
+
+export function assertNode24(version = process.versions.node) {
+  assert.equal(version.split('.')[0], '24', 'T17 rehearsal requires Node.js 24');
+}
+
 export async function runCommand(command, args, options = {}) {
   const began = performance.now();
-  const stdoutHash = createHash('sha256');
-  const stderrHash = createHash('sha256');
-  let stdoutBytes = 0;
-  let stderrBytes = 0;
-  let stdoutTail = Buffer.alloc(0);
-  let stderrTail = Buffer.alloc(0);
+  const output = createOutputCollector({ echo: options.echo });
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: options.env ?? process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  child.stdout.on('data', (chunk) => {
-    stdoutBytes += chunk.length;
-    stdoutHash.update(chunk);
-    stdoutTail = boundedAppend(stdoutTail, chunk);
-    if (options.echo) process.stdout.write(chunk);
-  });
-  child.stderr.on('data', (chunk) => {
-    stderrBytes += chunk.length;
-    stderrHash.update(chunk);
-    stderrTail = boundedAppend(stderrTail, chunk);
-    if (options.echo) process.stderr.write(chunk);
-  });
+  child.stdout.on('data', (chunk) => output.write('stdout', chunk));
+  child.stderr.on('data', (chunk) => output.write('stderr', chunk));
   const { code, signal } = await new Promise((resolvePromise, reject) => {
     child.once('error', reject);
     child.once('close', (exitCode, exitSignal) =>
@@ -100,12 +113,9 @@ export async function runCommand(command, args, options = {}) {
     exitCode: code,
     signal,
     elapsedMs: Math.round((performance.now() - began) * 1000) / 1000,
-    stdoutBytes,
-    stderrBytes,
-    stdoutSha256: stdoutHash.digest('hex'),
-    stderrSha256: stderrHash.digest('hex'),
-    stdoutTail: stdoutTail.toString('utf8'),
-    stderrTail: stderrTail.toString('utf8'),
+    ...output.summary(),
+    stdoutTail: output.tail('stdout'),
+    stderrTail: output.tail('stderr'),
   };
   if (code !== 0 && !options.allowFailure)
     throw Object.assign(
@@ -157,7 +167,7 @@ async function waitForApplication(port, child, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`application exited early with ${child.exitCode}`);
+    assertApplicationStillRunning(child);
     try {
       const state = await fetch(`http://127.0.0.1:${port}/api/state`);
       const page = await fetch(`http://127.0.0.1:${port}/`);
@@ -180,52 +190,59 @@ async function waitForApplication(port, child, timeoutMs = 60_000) {
   throw new Error(`application did not become ready: ${lastError ?? 'timeout'}`);
 }
 
-async function startAndStopApplication(checkout, recordings) {
+export function assertApplicationStillRunning(child) {
+  if (child.exitCode !== null) throw new Error(`application exited early with ${child.exitCode}`);
+}
+
+export function waitForChildClose(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null)
+    return Promise.resolve({ code: child.exitCode, signal: child.signalCode });
+  return new Promise((resolvePromise, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(`application did not stop within ${timeoutMs} ms`)),
+      timeoutMs,
+    );
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once('close', (exitCode, exitSignal) => {
+      clearTimeout(timeout);
+      resolvePromise({ code: exitCode, signal: exitSignal });
+    });
+  });
+}
+
+export async function startAndStopApplication(
+  checkout,
+  recordings,
+  { command = 'npm', args = ['start'], shutdownTimeoutMs = 10_000 } = {},
+) {
   const port = await unusedPort();
   const began = performance.now();
-  const child = spawn(process.execPath, ['server.ts'], {
+  const child = spawn(command, args, {
     cwd: checkout,
     env: { ...process.env, PORT: String(port), SCOPE_RECORDINGS_DIR: recordings },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  let stdout = Buffer.alloc(0);
-  let stderr = Buffer.alloc(0);
-  const stdoutHash = createHash('sha256');
-  const stderrHash = createHash('sha256');
-  let stdoutBytes = 0;
-  let stderrBytes = 0;
-  child.stdout.on('data', (chunk) => {
-    stdoutBytes += chunk.length;
-    stdoutHash.update(chunk);
-    stdout = boundedAppend(stdout, chunk);
-  });
-  child.stderr.on('data', (chunk) => {
-    stderrBytes += chunk.length;
-    stderrHash.update(chunk);
-    stderr = boundedAppend(stderr, chunk);
-  });
+  const output = createOutputCollector();
+  child.stdout.on('data', (chunk) => output.write('stdout', chunk));
+  child.stderr.on('data', (chunk) => output.write('stderr', chunk));
   try {
     const ready = await waitForApplication(port, child);
     const stopping = performance.now();
     child.kill('SIGTERM');
-    const { code, signal } = await new Promise((resolvePromise, reject) => {
-      child.once('error', reject);
-      child.once('close', (exitCode, exitSignal) =>
-        resolvePromise({ code: exitCode, signal: exitSignal }),
-      );
-    });
-    assert.equal(code, 0, stderr.toString('utf8'));
+    const { code, signal } = await waitForChildClose(child, shutdownTimeoutMs);
+    assert.equal(code, 0, output.tail('stderr'));
     return {
       ...ready,
+      command: [command, ...args].join(' '),
       port,
       exitCode: code,
       signal,
       shutdownMs: Math.round((performance.now() - stopping) * 1000) / 1000,
       totalElapsedMs: Math.round((performance.now() - began) * 1000) / 1000,
-      stdoutBytes,
-      stderrBytes,
-      stdoutSha256: stdoutHash.digest('hex'),
-      stderrSha256: stderrHash.digest('hex'),
+      ...output.summary(),
     };
   } finally {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
@@ -237,10 +254,46 @@ function publicStep(result) {
   return summary;
 }
 
+export async function runRequiredSteps(checkout, runner = runCommand) {
+  const results = [];
+  for (const [command, args] of handoffCommandPlan())
+    results.push(publicStep(await runner(command, args, { cwd: checkout, echo: true })));
+  return results;
+}
+
 function parseJsonTail(result, stream = 'stdoutTail') {
   const text = result[stream].trim();
   assert.ok(text, `${result.command} produced no ${stream}`);
   return JSON.parse(text);
+}
+
+export function independentHandoffSample(index, channel, sampleRate = 4000, seed = 42) {
+  const period = Math.max(8, Math.floor(sampleRate / (2 + 0.37 * channel) + 0.5));
+  const modulationPeriod = Math.max(4, Math.floor(period / 7 + 0.5));
+  const phase = ((index % period) + ((97 * channel + seed) % period)) % period;
+  const modulationPhase =
+    ((index % modulationPeriod) + (seed % modulationPeriod)) % modulationPeriod;
+  const triangle = (position, length) => 1 - 4 * Math.abs(position / length - 0.5);
+  return Math.fround(
+    0.8 * triangle(phase, period) + 0.12 * triangle(modulationPhase, modulationPeriod),
+  );
+}
+
+export function assertRetrievalObservations(observations, window) {
+  assert.deepEqual(
+    observations.map((item) => item.index),
+    Array.from({ length: window.end - window.start }, (_, offset) => window.start + offset),
+  );
+  for (const observation of observations) {
+    assert.equal(observation.values.length, HANDOFF_CHANNELS.length);
+    HANDOFF_CHANNELS.forEach((channel, offset) =>
+      assert.equal(
+        observation.values[offset],
+        independentHandoffSample(observation.index, channel),
+        `frame ${observation.index} selected channel ${channel}`,
+      ),
+    );
+  }
 }
 
 export function summarizeCliVerification(verification) {
@@ -261,6 +314,54 @@ export function summarizeCliVerification(verification) {
   };
 }
 
+export function summarizeCliRecording(recorded, inspection) {
+  assert.deepEqual(
+    { status: recorded.status, frames: recorded.frames, droppedFrames: recorded.droppedFrames },
+    { status: 'completed', frames: 8000, droppedFrames: 0 },
+  );
+  assert.deepEqual(
+    {
+      status: inspection.status,
+      channels: inspection.channels,
+      sampleRate: inspection.sampleRate,
+      seed: inspection.seed,
+      expectedFrames: inspection.expectedFrames,
+      recordedFrames: inspection.recordedFrames,
+      totalSamples: inspection.totalSamples,
+      frameFileBytes: inspection.fileBytes,
+      droppedFrames: inspection.droppedFrames,
+      trailingBytes: inspection.trailingBytes,
+    },
+    {
+      status: 'completed',
+      channels: 32,
+      sampleRate: 4000,
+      seed: 42,
+      expectedFrames: 8000,
+      recordedFrames: 8000,
+      totalSamples: 256000,
+      frameFileBytes: 1088000,
+      droppedFrames: 0,
+      trailingBytes: 0,
+    },
+  );
+  assert.ok(inspection.processes.generator > 0 && inspection.processes.recorder > 0);
+  assert.notEqual(inspection.processes.generator, inspection.processes.recorder);
+  return {
+    status: inspection.status,
+    channels: inspection.channels,
+    sampleRate: inspection.sampleRate,
+    seed: inspection.seed,
+    expectedFrames: inspection.expectedFrames,
+    recordedFrames: inspection.recordedFrames,
+    totalSamples: inspection.totalSamples,
+    frameFileBytes: inspection.fileBytes,
+    droppedFrames: inspection.droppedFrames,
+    trailingBytes: inspection.trailingBytes,
+    processSeparation: true,
+  };
+}
+
 async function cliWorkflow(checkout, root) {
   const recording = join(root, 't17-cli-recording');
   const node = process.execPath;
@@ -268,27 +369,12 @@ async function cliWorkflow(checkout, root) {
     cwd: checkout,
   });
   const recorded = parseJsonTail(record);
-  assert.deepEqual(
-    { status: recorded.status, frames: recorded.frames, droppedFrames: recorded.droppedFrames },
-    { status: 'completed', frames: 8000, droppedFrames: 0 },
-  );
 
   const inspectResult = await runCommand(node, ['core/cli.ts', 'inspect', recording], {
     cwd: checkout,
   });
   const inspection = parseJsonTail(inspectResult);
-  assert.equal(inspection.channels, 32);
-  assert.equal(inspection.sampleRate, 4000);
-  assert.equal(inspection.seed, 42);
-  assert.equal(inspection.expectedFrames, 8000);
-  assert.equal(inspection.recordedFrames, 8000);
-  assert.equal(inspection.totalSamples, 256000);
-  assert.equal(inspection.fileBytes, 1088000);
-  assert.equal(inspection.trailingBytes, 0);
-  assert.equal(inspection.status, 'completed');
-  assert.equal(inspection.droppedFrames, 0);
-  assert.ok(inspection.processes.generator > 0 && inspection.processes.recorder > 0);
-  assert.notEqual(inspection.processes.generator, inspection.processes.recorder);
+  const recordingSummary = summarizeCliRecording(recorded, inspection);
 
   const retrieval = [];
   for (const window of HANDOFF_WINDOWS) {
@@ -308,11 +394,7 @@ async function cliWorkflow(checkout, root) {
       { cwd: checkout },
     );
     const observations = result.stdoutTail.trim().split('\n').filter(Boolean).map(JSON.parse);
-    assert.deepEqual(
-      observations.map((item) => item.index),
-      Array.from({ length: window.end - window.start }, (_, offset) => window.start + offset),
-    );
-    assert.ok(observations.every((item) => item.values.length === HANDOFF_CHANNELS.length));
+    assertRetrievalObservations(observations, window);
     retrieval.push({ ...window, rows: observations.length, ...publicStep(result) });
   }
 
@@ -332,19 +414,7 @@ async function cliWorkflow(checkout, root) {
   const verificationSummary = summarizeCliVerification(verification);
 
   return {
-    recording: {
-      status: inspection.status,
-      channels: inspection.channels,
-      sampleRate: inspection.sampleRate,
-      seed: inspection.seed,
-      expectedFrames: inspection.expectedFrames,
-      recordedFrames: inspection.recordedFrames,
-      totalSamples: inspection.totalSamples,
-      frameBytes: inspection.fileBytes,
-      droppedFrames: inspection.droppedFrames,
-      trailingBytes: inspection.trailingBytes,
-      processSeparation: inspection.processes.generator !== inspection.processes.recorder,
-    },
+    recording: recordingSummary,
     retrieval,
     playback: {
       status: playback.status,
@@ -366,7 +436,7 @@ async function writeJsonAtomic(path, value) {
 }
 
 export async function runHandoffEvidence(options) {
-  assert.equal(process.versions.node.split('.')[0], '24', 'T17 rehearsal requires Node.js 24');
+  assertNode24();
   const current = await runCommand('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
     cwd: resolve('.'),
   });
@@ -405,8 +475,7 @@ export async function runHandoffEvidence(options) {
     );
     assert.equal(sourceStatus.stdoutTail, '', 'cloned source must be clean');
     const tree = await runtimeTreeDigest(checkout);
-    for (const [command, args] of handoffCommandPlan(options.skipBrowserInstall))
-      steps.push(publicStep(await runCommand(command, args, { cwd: checkout, echo: true })));
+    steps.push(...(await runRequiredSteps(checkout)));
 
     await mkdir(recordingRoot);
     const server = await startAndStopApplication(checkout, recordingRoot);
@@ -437,7 +506,8 @@ export async function runHandoffEvidence(options) {
       server,
       cli,
     };
-    await writeJsonAtomic(options.output, report);
+    const output = join(options.outputDirectory, 'rehearsal.json');
+    await writeJsonAtomic(output, report);
     return report;
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
@@ -448,7 +518,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const options = parseHandoffArguments(process.argv.slice(2));
     const report = await runHandoffEvidence(options);
-    process.stdout.write(`T17 handoff rehearsal ${report.result}: ${options.output}\n`);
+    process.stdout.write(
+      `T17 handoff rehearsal ${report.result}: ${join(options.outputDirectory, 'rehearsal.json')}\n`,
+    );
   } catch (error) {
     process.stderr.write(
       `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,

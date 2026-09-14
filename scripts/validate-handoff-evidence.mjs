@@ -68,6 +68,31 @@ export async function validateHandoffEvidence({
   assert.equal(rehearsal.result, 'PASS');
   assert.equal(rehearsal.cli.verification.result, 'PASS');
   assert.equal(rehearsal.cli.recording.droppedFrames, 0);
+  const requiredCommands = [
+    'npm ci',
+    'npm run format:check',
+    'npm run typecheck',
+    'npm test',
+    'npm run build',
+    'npm run format:check',
+    'npm run check:clean',
+    'npm run check:links',
+    'npx playwright install chromium',
+    'npm run test:browser',
+    'npm run evidence:validate-acquisition',
+    'npm run evidence:validate-long-recording',
+  ];
+  assert.deepEqual(
+    rehearsal.steps.slice(2).map(({ command }) => command),
+    requiredCommands,
+    'rehearsal command sequence must be exact',
+  );
+  assert.match(rehearsal.steps[0].command, /^git clone --no-checkout /);
+  assert.equal(
+    rehearsal.steps[1].command,
+    `git checkout --detach ${rehearsal.source.requestedRef}`,
+  );
+  assert.equal(rehearsal.server.command, 'npm start');
   assert.equal(video.status, 'reviewed');
   assert.match(
     video.release.url,

@@ -368,7 +368,7 @@
       "implementation": ["README.md", "package.json"],
       "tests": ["tests/handoff-evidence.test.mjs"],
       "evidence": ["docs/evidence/t17/rehearsal.schema.json"],
-      "reproductionCommand": "npm run evidence:handoff -- --source git@github.com:GowthamTG/anthriq.git --ref main --output docs/evidence/t17/rehearsal.json --workload quiet",
+      "reproductionCommand": "npm run evidence:handoff -- --source git@github.com:GowthamTG/anthriq.git --ref main --output docs/evidence/t17 --workload quiet",
       "demoTimestamp": "05:15"
     },
     {
@@ -720,7 +720,7 @@
       "implementation": ["scripts/handoff-evidence.mjs", "README.md"],
       "tests": ["tests/handoff-evidence.test.mjs"],
       "evidence": ["docs/evidence/t17/rehearsal.schema.json"],
-      "reproductionCommand": "npm run evidence:handoff -- --source git@github.com:GowthamTG/anthriq.git --ref main --output docs/evidence/t17/rehearsal.json --workload quiet",
+      "reproductionCommand": "npm run evidence:handoff -- --source git@github.com:GowthamTG/anthriq.git --ref main --output docs/evidence/t17 --workload quiet",
       "demoTimestamp": "05:15"
     }
   ],

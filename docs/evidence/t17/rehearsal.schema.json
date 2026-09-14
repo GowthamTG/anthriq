@@ -43,12 +43,18 @@
         "npm": { "type": "string" }
       }
     },
-    "steps": { "type": "array", "minItems": 11, "items": { "$ref": "#/$defs/command" } },
+    "steps": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "items": { "$ref": "#/$defs/command" }
+    },
     "server": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "elapsedMs",
+        "command",
         "stateStatus",
         "pageStatus",
         "acquisitionStatus",
@@ -64,6 +70,7 @@
       ],
       "properties": {
         "elapsedMs": { "type": "number", "minimum": 0 },
+        "command": { "const": "npm start" },
         "stateStatus": { "const": 200 },
         "pageStatus": { "const": 200 },
         "acquisitionStatus": { "type": "string" },
@@ -94,7 +101,7 @@
             "expectedFrames",
             "recordedFrames",
             "totalSamples",
-            "frameBytes",
+            "frameFileBytes",
             "droppedFrames",
             "trailingBytes",
             "processSeparation"
@@ -107,7 +114,7 @@
             "expectedFrames": { "const": 8000 },
             "recordedFrames": { "const": 8000 },
             "totalSamples": { "const": 256000 },
-            "frameBytes": { "const": 1088000 },
+            "frameFileBytes": { "const": 1088000 },
             "droppedFrames": { "const": 0 },
             "trailingBytes": { "const": 0 },
             "processSeparation": { "const": true }

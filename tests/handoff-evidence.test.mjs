@@ -1,18 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { promisify } from 'node:util';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   HANDOFF_OUTPUT_LIMIT_BYTES,
+  assertApplicationStillRunning,
+  assertNode24,
+  assertRetrievalObservations,
   boundedAppend,
+  createOutputCollector,
   handoffCommandPlan,
+  independentHandoffSample,
   parseHandoffArguments,
   runCommand,
+  runRequiredSteps,
   runtimeTreeDigest,
+  summarizeCliRecording,
   summarizeCliVerification,
+  waitForChildClose,
 } from '../scripts/handoff-evidence.mjs';
 import { validateHandoffEvidence } from '../scripts/validate-handoff-evidence.mjs';
 import { localMarkdownTargets } from '../scripts/check-markdown-links.mjs';
@@ -32,6 +41,7 @@ test('handoff arguments require an exact source, ref, output, and honest workloa
   ]);
   assert.equal(parsed.ref, 'abc123');
   assert.equal(parsed.workload, 'quiet');
+  assert.equal(parsed.outputDirectory, resolve('result.json'));
   assert.throws(() => parseHandoffArguments([]), /Missing required option/);
   assert.throws(
     () =>
@@ -65,6 +75,12 @@ test('handoff arguments require an exact source, ref, output, and honest workloa
   );
 });
 
+test('Node preflight rejects every non-24 runtime before any rehearsal work', () => {
+  assert.doesNotThrow(() => assertNode24('24.21.0'));
+  assert.throws(() => assertNode24('23.11.0'), /requires Node.js 24/);
+  assert.throws(() => assertNode24('25.0.0'), /requires Node.js 24/);
+});
+
 test('handoff command plan preserves the complete clean-clone gate order', () => {
   assert.deepEqual(
     handoffCommandPlan().map(([command, args]) => [command, ...args].join(' ')),
@@ -85,6 +101,33 @@ test('handoff command plan preserves the complete clean-clone gate order', () =>
   );
 });
 
+test('required install and build stages stop immediately on their named failure', async () => {
+  for (const failing of ['npm ci', 'npm run build']) {
+    const called = [];
+    await assert.rejects(
+      runRequiredSteps('/tmp/unused', async (command, args) => {
+        const label = [command, ...args].join(' ');
+        called.push(label);
+        if (label === failing) throw new Error(`${failing} failed`);
+        return {
+          command: label,
+          exitCode: 0,
+          signal: null,
+          elapsedMs: 0,
+          stdoutBytes: 0,
+          stderrBytes: 0,
+          stdoutSha256: 'x',
+          stderrSha256: 'y',
+          stdoutTail: '',
+          stderrTail: '',
+        };
+      }),
+      new RegExp(`${failing} failed`),
+    );
+    assert.equal(called.at(-1), failing);
+  }
+});
+
 test('local Markdown target extraction excludes external and in-page links', () => {
   assert.deepEqual(
     localMarkdownTargets('[local](docs/file.md) [web](https://example.com) [anchor](#part)'),
@@ -103,6 +146,20 @@ test('command capture is bounded, hashed, and fails closed on nonzero exit', asy
   assert.equal(success.stdoutTail.length, HANDOFF_OUTPUT_LIMIT_BYTES);
   assert.match(success.stdoutSha256, /^[a-f0-9]{64}$/);
   await assert.rejects(runCommand(process.execPath, ['-e', 'process.exit(7)']), /exit 7/);
+});
+
+test('shared output collector bounds raw data while preserving exact counts and hashes', () => {
+  const collector = createOutputCollector();
+  collector.write('stdout', Buffer.alloc(HANDOFF_OUTPUT_LIMIT_BYTES + 4, 1));
+  collector.write('stderr', Buffer.from('failure'));
+  assert.equal(Buffer.byteLength(collector.tail('stdout')), HANDOFF_OUTPUT_LIMIT_BYTES);
+  assert.equal(collector.tail('stderr'), 'failure');
+  assert.deepEqual(collector.summary(), {
+    stdoutBytes: HANDOFF_OUTPUT_LIMIT_BYTES + 4,
+    stderrBytes: 7,
+    stdoutSha256: '779320860686da69ae3b6d2a6f10181c7585c14350903523b3c3e0726d3185d9',
+    stderrSha256: '16d34b5e7bcb341ee6cb3d16495d90e93fbe57c46d3827432613210a24ebca30',
+  });
 });
 
 test('CLI verification summary follows the real grouped report and rejects a flattened lookalike', () => {
@@ -128,6 +185,59 @@ test('CLI verification summary follows the real grouped report and rejects a fla
     peakRssBytes: 1024,
   });
   assert.throws(() => summarizeCliVerification({ ...report, counts: undefined }));
+});
+
+test('CLI recording reconciliation rejects incomplete, lossy, or contradictory results', () => {
+  const recorded = { status: 'completed', frames: 8000, droppedFrames: 0 };
+  const inspection = {
+    status: 'completed',
+    channels: 32,
+    sampleRate: 4000,
+    seed: 42,
+    expectedFrames: 8000,
+    recordedFrames: 8000,
+    totalSamples: 256000,
+    fileBytes: 1088000,
+    droppedFrames: 0,
+    trailingBytes: 0,
+    processes: { generator: 101, recorder: 102 },
+  };
+  assert.equal(summarizeCliRecording(recorded, inspection).processSeparation, true);
+  assert.throws(() => summarizeCliRecording({ ...recorded, status: 'failed' }, inspection));
+  assert.throws(() => summarizeCliRecording({ ...recorded, droppedFrames: 1 }, inspection));
+  assert.throws(() => summarizeCliRecording(recorded, { ...inspection, recordedFrames: 7999 }));
+  assert.throws(() =>
+    summarizeCliRecording(recorded, {
+      ...inspection,
+      processes: { generator: 101, recorder: 101 },
+    }),
+  );
+});
+
+test('retrieval checks independent float32 values in requested channel order', () => {
+  const window = { start: 0, end: 1 };
+  const values = [31, 2, 17, 0].map((channel) => independentHandoffSample(0, channel));
+  assert.doesNotThrow(() => assertRetrievalObservations([{ index: 0, values }], window));
+  const reordered = [values[1], values[0], values[2], values[3]];
+  assert.throws(
+    () => assertRetrievalObservations([{ index: 0, values: reordered }], window),
+    /selected channel/,
+  );
+  assert.throws(
+    () => assertRetrievalObservations([{ index: 0, values: [0, 0, 0, 0] }], window),
+    /selected channel/,
+  );
+});
+
+test('application startup and bounded shutdown failures cannot pass', async () => {
+  assert.throws(() => assertApplicationStillRunning({ exitCode: 7 }), /exited early with 7/);
+  const child = new EventEmitter();
+  child.exitCode = null;
+  child.signalCode = null;
+  await assert.rejects(waitForChildClose(child, 5), /did not stop within 5 ms/);
+  const closing = waitForChildClose(child, 100);
+  child.emit('close', 0, null);
+  assert.deepEqual(await closing, { code: 0, signal: null });
 });
 
 test('runtime tree digest ignores only T17 evidence and detects product changes', async (t) => {
@@ -193,6 +303,10 @@ async function makeEvidenceFixture(t) {
     stdoutSha256: 'x',
     stderrSha256: 'y',
   };
+  const requiredCommands = handoffCommandPlan().map(([commandName, args]) => ({
+    ...command,
+    command: [commandName, ...args].join(' '),
+  }));
   const rehearsal = {
     schemaVersion: 'SCOPE-T17-HANDOFF/1',
     result: 'PASS',
@@ -206,9 +320,14 @@ async function makeEvidenceFixture(t) {
       runtimeTree: { sha256: 'x', files: 1 },
     },
     environment: { platform: 'x', release: 'x', arch: 'x', node: 'v24', npm: '11' },
-    steps: Array.from({ length: 11 }, () => command),
+    steps: [
+      { ...command, command: 'git clone --no-checkout source checkout' },
+      { ...command, command: 'git checkout --detach x' },
+      ...requiredCommands,
+    ],
     server: {
       elapsedMs: 1,
+      command: 'npm start',
       stateStatus: 200,
       pageStatus: 200,
       acquisitionStatus: 'idle',
@@ -231,7 +350,7 @@ async function makeEvidenceFixture(t) {
         expectedFrames: 8000,
         recordedFrames: 8000,
         totalSamples: 256000,
-        frameBytes: 1088000,
+        frameFileBytes: 1088000,
         droppedFrames: 0,
         trailingBytes: 0,
         processSeparation: true,

@@ -34,7 +34,7 @@ To repeat the complete clean-clone rehearsal from a clean Node.js 24 checkout:
 npm run evidence:handoff -- \
   --source git@github.com:GowthamTG/anthriq.git \
   --ref <candidate-commit> \
-  --output docs/evidence/t17/rehearsal.json \
+  --output docs/evidence/t17 \
   --workload quiet
 ```
 

@@ -243,6 +243,24 @@ function parseJsonTail(result, stream = 'stdoutTail') {
   return JSON.parse(text);
 }
 
+export function summarizeCliVerification(verification) {
+  assert.equal(verification.result, 'PASS');
+  assert.equal(verification.counts.recordedFrames, 8000);
+  assert.equal(verification.formatErrors.count, 0);
+  for (const kind of ['missing', 'duplicated', 'incorrect'])
+    assert.equal(verification.discrepancies[kind].samples, 0);
+  return {
+    result: verification.result,
+    recordsScanned: verification.counts.recordedFrames,
+    formatErrors: verification.formatErrors.count,
+    missingSamples: verification.discrepancies.missing.samples,
+    duplicatedSamples: verification.discrepancies.duplicated.samples,
+    incorrectSamples: verification.discrepancies.incorrect.samples,
+    elapsedMs: verification.execution.elapsedMs,
+    peakRssBytes: verification.execution.peakRssBytes,
+  };
+}
+
 async function cliWorkflow(checkout, root) {
   const recording = join(root, 't17-cli-recording');
   const node = process.execPath;
@@ -311,11 +329,7 @@ async function cliWorkflow(checkout, root) {
     cwd: checkout,
   });
   const verification = parseJsonTail(verificationResult);
-  assert.equal(verification.result, 'PASS');
-  assert.equal(verification.recordsScanned, 8000);
-  assert.equal(verification.formatErrors.count, 0);
-  for (const kind of ['missing', 'duplicated', 'incorrect'])
-    assert.equal(verification.discrepancies[kind].samples, 0);
+  const verificationSummary = summarizeCliVerification(verification);
 
   return {
     recording: {
@@ -339,16 +353,7 @@ async function cliWorkflow(checkout, root) {
       emittedSamples: playback.emittedSamples,
       elapsedMs: playbackResult.elapsedMs,
     },
-    verification: {
-      result: verification.result,
-      recordsScanned: verification.recordsScanned,
-      formatErrors: verification.formatErrors.count,
-      missingSamples: verification.discrepancies.missing.samples,
-      duplicatedSamples: verification.discrepancies.duplicated.samples,
-      incorrectSamples: verification.discrepancies.incorrect.samples,
-      elapsedMs: verification.elapsedMs,
-      peakRssBytes: verification.peakRssBytes,
-    },
+    verification: verificationSummary,
     commands: [record, inspectResult, playbackResult, verificationResult].map(publicStep),
   };
 }

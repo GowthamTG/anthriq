@@ -12,6 +12,7 @@ import {
   parseHandoffArguments,
   runCommand,
   runtimeTreeDigest,
+  summarizeCliVerification,
 } from '../scripts/handoff-evidence.mjs';
 import { validateHandoffEvidence } from '../scripts/validate-handoff-evidence.mjs';
 import { localMarkdownTargets } from '../scripts/check-markdown-links.mjs';
@@ -102,6 +103,31 @@ test('command capture is bounded, hashed, and fails closed on nonzero exit', asy
   assert.equal(success.stdoutTail.length, HANDOFF_OUTPUT_LIMIT_BYTES);
   assert.match(success.stdoutSha256, /^[a-f0-9]{64}$/);
   await assert.rejects(runCommand(process.execPath, ['-e', 'process.exit(7)']), /exit 7/);
+});
+
+test('CLI verification summary follows the real grouped report and rejects a flattened lookalike', () => {
+  const report = {
+    result: 'PASS',
+    counts: { recordedFrames: 8000 },
+    formatErrors: { count: 0 },
+    discrepancies: {
+      missing: { samples: 0 },
+      duplicated: { samples: 0 },
+      incorrect: { samples: 0 },
+    },
+    execution: { elapsedMs: 12, peakRssBytes: 1024 },
+  };
+  assert.deepEqual(summarizeCliVerification(report), {
+    result: 'PASS',
+    recordsScanned: 8000,
+    formatErrors: 0,
+    missingSamples: 0,
+    duplicatedSamples: 0,
+    incorrectSamples: 0,
+    elapsedMs: 12,
+    peakRssBytes: 1024,
+  });
+  assert.throws(() => summarizeCliVerification({ ...report, counts: undefined }));
 });
 
 test('runtime tree digest ignores only T17 evidence and detects product changes', async (t) => {

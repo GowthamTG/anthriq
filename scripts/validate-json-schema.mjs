@@ -6,7 +6,22 @@ import { fileURLToPath } from 'node:url';
 const actualType = (value) =>
   value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
 
-export function validateJsonSchema(value, schema, path = '$') {
+function resolveLocalReference(rootSchema, reference) {
+  if (!reference.startsWith('#/')) throw new Error(`Unsupported schema reference: ${reference}`);
+  return reference
+    .slice(2)
+    .split('/')
+    .map((part) => part.replaceAll('~1', '/').replaceAll('~0', '~'))
+    .reduce((value, part) => value?.[part], rootSchema);
+}
+
+export function validateJsonSchema(value, schema, path = '$', rootSchema = schema) {
+  if (schema.$ref) {
+    const referenced = resolveLocalReference(rootSchema, schema.$ref);
+    assert.ok(referenced, `${path}: unresolved schema reference ${schema.$ref}`);
+    validateJsonSchema(value, referenced, path, rootSchema);
+    return;
+  }
   if (schema.const !== undefined) assert.deepEqual(value, schema.const, `${path}: const`);
   if (schema.enum) assert.ok(schema.enum.includes(value), `${path}: enum`);
   if (schema.type) {
@@ -25,7 +40,9 @@ export function validateJsonSchema(value, schema, path = '$') {
     if (schema.maxItems !== undefined)
       assert.ok(value.length <= schema.maxItems, `${path}: maxItems ${schema.maxItems}`);
     if (schema.items)
-      value.forEach((item, index) => validateJsonSchema(item, schema.items, `${path}[${index}]`));
+      value.forEach((item, index) =>
+        validateJsonSchema(item, schema.items, `${path}[${index}]`, rootSchema),
+      );
   }
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     for (const key of schema.required ?? [])
@@ -37,7 +54,8 @@ export function validateJsonSchema(value, schema, path = '$') {
           `${path}: unexpected property ${key}`,
         );
     for (const [key, child] of Object.entries(schema.properties ?? {}))
-      if (Object.hasOwn(value, key)) validateJsonSchema(value[key], child, `${path}.${key}`);
+      if (Object.hasOwn(value, key))
+        validateJsonSchema(value[key], child, `${path}.${key}`, rootSchema);
   }
 }
 

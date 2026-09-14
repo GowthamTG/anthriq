@@ -1,0 +1,765 @@
+{
+  "schemaVersion": "SCOPE-T17-TRACEABILITY/1",
+  "result": "PASS",
+  "source": {
+    "title": "Technical Assessment: Streaming Signal Capture and Playback",
+    "pages": 3,
+    "sha256": "b6b34fc36fd7db1eac6a1b0b7630a2c35b182a476d6d83ecff38bf1df23220a7",
+    "auditedAt": "2026-09-14T09:00:00+05:30"
+  },
+  "pdfRequirements": [
+    {
+      "id": "P01",
+      "requirement": "Acquire a continuous multichannel signal at a fixed real-time rate, persist without nominal loss, then retrieve and replay it.",
+      "status": "verified",
+      "implementation": ["core/acquisition.ts", "core/playback.ts"],
+      "tests": ["tests/cli.test.mjs", "tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t15/README.md", "docs/evidence/t16/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "00:35"
+    },
+    {
+      "id": "P02",
+      "requirement": "Use Node.js and React.",
+      "status": "verified",
+      "implementation": ["package.json", "app/page.tsx"],
+      "tests": ["tests/browser/t14-workflow.spec.mjs"],
+      "evidence": ["README.md"],
+      "reproductionCommand": "npm run build",
+      "demoTimestamp": "00:15"
+    },
+    {
+      "id": "P03",
+      "requirement": "Make channel count and sample rate runtime-configurable and document the mechanism.",
+      "status": "verified",
+      "implementation": ["core/config.ts", "app/configuration-form.tsx"],
+      "tests": ["tests/configuration.test.mjs", "tests/browser/configuration.spec.mjs"],
+      "evidence": ["docs/evidence/t02/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "00:35"
+    },
+    {
+      "id": "P04",
+      "requirement": "Generate deterministic values reproducible from a known seed or closed-form function.",
+      "status": "verified",
+      "implementation": ["core/signal.ts"],
+      "tests": ["tests/configuration.test.mjs"],
+      "evidence": ["docs/waveform.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "00:45"
+    },
+    {
+      "id": "P05",
+      "requirement": "Implement generator and recorder as two independent processes.",
+      "status": "verified",
+      "implementation": ["core/generator.ts", "core/recorder.ts"],
+      "tests": ["tests/cli.test.mjs"],
+      "evidence": ["docs/evidence/t01/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:20"
+    },
+    {
+      "id": "P06",
+      "requirement": "Pace generation at the configured real-world rate rather than maximum machine speed.",
+      "status": "verified",
+      "implementation": ["core/generator.ts"],
+      "tests": ["tests/cli.test.mjs"],
+      "evidence": ["docs/evidence/t15/run-summary.json"],
+      "reproductionCommand": "npm run benchmark:acquisition -- --workload quiet",
+      "demoTimestamp": "01:00"
+    },
+    {
+      "id": "P07",
+      "requirement": "Keep the source timeline independent of recorder throughput or backpressure.",
+      "status": "verified",
+      "implementation": ["core/generator.ts", "core/recorder.ts"],
+      "tests": ["tests/overload.test.mjs"],
+      "evidence": ["docs/evidence/t05/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:05"
+    },
+    {
+      "id": "P08",
+      "requirement": "Document pacing strategy and report timing accuracy over a sustained run.",
+      "status": "verified",
+      "implementation": ["docs/overload.md"],
+      "tests": ["tests/benchmark.test.mjs"],
+      "evidence": ["docs/evidence/t15/run-summary.json"],
+      "reproductionCommand": "npm run evidence:validate-acquisition",
+      "demoTimestamp": "05:30"
+    },
+    {
+      "id": "P09",
+      "requirement": "Continuously ingest recordings with no fixed run-duration limit.",
+      "status": "verified",
+      "implementation": ["core/acquisition.ts", "core/cli.ts"],
+      "tests": ["tests/cli.test.mjs"],
+      "evidence": ["README.md"],
+      "reproductionCommand": "npm run cli -- record recordings/continuous",
+      "demoTimestamp": "00:50"
+    },
+    {
+      "id": "P10",
+      "requirement": "Persist samples to disk.",
+      "status": "verified",
+      "implementation": ["core/recorder.ts", "core/storage.ts"],
+      "tests": ["tests/cli.test.mjs"],
+      "evidence": ["docs/recording-format.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:10"
+    },
+    {
+      "id": "P11",
+      "requirement": "Maintain steady-state recording memory independent of duration.",
+      "status": "verified",
+      "implementation": ["core/generator.ts", "core/recorder.ts"],
+      "tests": ["tests/benchmark.test.mjs"],
+      "evidence": ["docs/evidence/t15/run-summary.json"],
+      "reproductionCommand": "npm run evidence:validate-acquisition",
+      "demoTimestamp": "05:30"
+    },
+    {
+      "id": "P12",
+      "requirement": "Document a buffering upper bound and defined overload behavior.",
+      "status": "verified",
+      "implementation": ["core/contracts.ts", "docs/overload.md"],
+      "tests": ["tests/overload.test.mjs"],
+      "evidence": ["docs/evidence/t05/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:15"
+    },
+    {
+      "id": "P13",
+      "requirement": "Detect and report dropped-sample counts and positions.",
+      "status": "verified",
+      "implementation": ["core/recorder.ts", "core/verify.ts"],
+      "tests": ["tests/overload.test.mjs"],
+      "evidence": ["docs/evidence/t15/losses.jsonl"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:15"
+    },
+    {
+      "id": "P14",
+      "requirement": "Terminate cleanly on interrupt, flushing buffered data and readable metadata.",
+      "status": "verified",
+      "implementation": ["core/acquisition.ts", "core/cli.ts"],
+      "tests": ["tests/cli.test.mjs", "tests/failures.test.mjs"],
+      "evidence": ["docs/evidence/t04/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:35"
+    },
+    {
+      "id": "P15",
+      "requirement": "Show zero loss nominally and state the accepted overload-loss policy and rationale.",
+      "status": "verified",
+      "implementation": ["docs/overload.md"],
+      "tests": ["tests/overload.test.mjs"],
+      "evidence": ["docs/evidence/t15/run-summary.json"],
+      "reproductionCommand": "npm run evidence:validate-acquisition",
+      "demoTimestamp": "01:35"
+    },
+    {
+      "id": "P16",
+      "requirement": "Make a recording fully interpretable without source-code access.",
+      "status": "verified",
+      "implementation": ["docs/recording-format.md", "docs/waveform.md"],
+      "tests": ["tests/inspection.test.mjs"],
+      "evidence": ["README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:00"
+    },
+    {
+      "id": "P17",
+      "requirement": "Convey channel count, sample rate, total sample count, duration, numeric type/width/byte order, layout, and start timestamp.",
+      "status": "verified",
+      "implementation": ["core/contracts.ts", "core/metadata.ts"],
+      "tests": ["tests/inspection.test.mjs"],
+      "evidence": ["docs/recording-format.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:00"
+    },
+    {
+      "id": "P18",
+      "requirement": "Retrieve arbitrary time ranges and channel subsets without a full scan where layout permits, and describe extra reads.",
+      "status": "verified",
+      "implementation": ["core/storage.ts"],
+      "tests": ["tests/range.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm run evidence:validate-long-recording",
+      "demoTimestamp": "02:25"
+    },
+    {
+      "id": "P19",
+      "requirement": "Document bytes per sample and numeric-representation rationale.",
+      "status": "verified",
+      "implementation": ["docs/recording-format.md"],
+      "tests": ["tests/inspection.test.mjs"],
+      "evidence": ["README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "05:35"
+    },
+    {
+      "id": "P20",
+      "requirement": "Document approximate one-hour size at default parameters.",
+      "status": "verified",
+      "implementation": ["docs/recording-format.md"],
+      "tests": ["tests/benchmark.test.mjs"],
+      "evidence": ["docs/evidence/t15/metadata.json"],
+      "reproductionCommand": "npm run evidence:validate-acquisition",
+      "demoTimestamp": "05:35"
+    },
+    {
+      "id": "P21",
+      "requirement": "Document format rationale and rejected alternatives.",
+      "status": "verified",
+      "implementation": [
+        "docs/recording-format.md",
+        "docs/adr/0002-bounded-transport-and-indexed-frames.md"
+      ],
+      "tests": ["tests/inspection.test.mjs"],
+      "evidence": ["README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "05:35"
+    },
+    {
+      "id": "P22",
+      "requirement": "Document interruption behavior and partial readability of truncated files.",
+      "status": "verified",
+      "implementation": ["docs/failure-handling.md", "docs/recording-format.md"],
+      "tests": ["tests/inspection.test.mjs", "tests/failures.test.mjs"],
+      "evidence": ["docs/evidence/t04/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "05:40"
+    },
+    {
+      "id": "P23",
+      "requirement": "Inspect recording metadata.",
+      "status": "verified",
+      "implementation": ["core/storage.ts", "app/recording-details.tsx"],
+      "tests": ["tests/inspection.test.mjs", "tests/browser/library.spec.mjs"],
+      "evidence": ["docs/evidence/t03/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:55"
+    },
+    {
+      "id": "P24",
+      "requirement": "Retrieve intervals by time or original sample index.",
+      "status": "verified",
+      "implementation": ["core/storage.ts", "app/range-inspector.tsx"],
+      "tests": ["tests/range.test.mjs"],
+      "evidence": ["docs/evidence/t08/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:20"
+    },
+    {
+      "id": "P25",
+      "requirement": "Retrieve arbitrary channel subsets.",
+      "status": "verified",
+      "implementation": ["core/storage.ts"],
+      "tests": ["tests/range.test.mjs"],
+      "evidence": ["docs/evidence/t08/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:20"
+    },
+    {
+      "id": "P26",
+      "requirement": "Play samples at the recording's native rate and report observed pacing.",
+      "status": "verified",
+      "implementation": ["core/playback.ts"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm run evidence:validate-long-recording",
+      "demoTimestamp": "02:55"
+    },
+    {
+      "id": "P27",
+      "requirement": "Support configurable slower and faster playback multiples.",
+      "status": "verified",
+      "implementation": ["core/playback.ts", "app/playback-panel.tsx"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "03:20"
+    },
+    {
+      "id": "P28",
+      "requirement": "Pause and resume without losing position.",
+      "status": "verified",
+      "implementation": ["core/playback.ts"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t11/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "03:05"
+    },
+    {
+      "id": "P29",
+      "requirement": "Seek to arbitrary offsets and document operation cost.",
+      "status": "verified",
+      "implementation": ["core/playback.ts", "core/storage.ts"],
+      "tests": ["tests/playback.test.mjs", "tests/range.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm run evidence:validate-long-recording",
+      "demoTimestamp": "03:15"
+    },
+    {
+      "id": "P30",
+      "requirement": "Keep retrieval and playback memory proportional to requested work rather than total recording size.",
+      "status": "verified",
+      "implementation": ["core/storage.ts", "core/playback.ts"],
+      "tests": ["tests/long-recording-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm run evidence:validate-long-recording",
+      "demoTimestamp": "05:30"
+    },
+    {
+      "id": "P31",
+      "requirement": "Verify missing, duplicated, and incorrect samples separately and report first discrepancy positions.",
+      "status": "verified",
+      "implementation": ["core/verify.ts"],
+      "tests": ["tests/verification.test.mjs"],
+      "evidence": ["docs/evidence/t06/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "04:20"
+    },
+    {
+      "id": "P32",
+      "requirement": "Stream verification without materializing either full signal and keep memory independent of duration.",
+      "status": "verified",
+      "implementation": ["core/verify.ts"],
+      "tests": ["tests/verification.test.mjs"],
+      "evidence": ["docs/evidence/t16/verification.json"],
+      "reproductionCommand": "npm run evidence:validate-long-recording",
+      "demoTimestamp": "04:10"
+    },
+    {
+      "id": "P33",
+      "requirement": "Provide a machine-checkable verification result.",
+      "status": "verified",
+      "implementation": ["core/cli.ts", "core/verify.ts"],
+      "tests": ["tests/verification.test.mjs"],
+      "evidence": ["docs/evidence/t15/verification.json"],
+      "reproductionCommand": "npm run cli -- verify recordings/example",
+      "demoTimestamp": "04:20"
+    },
+    {
+      "id": "P34",
+      "requirement": "If a visualizer is included, keep full-rate acquisition and playback responsive using a decimated/windowed view that cannot degrade recording.",
+      "status": "verified",
+      "implementation": ["app/signal-trace.tsx", "server.ts"],
+      "tests": ["tests/browser/acquire.spec.mjs", "tests/preview-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t13/README.md"],
+      "reproductionCommand": "npm run test:browser",
+      "demoTimestamp": "01:00"
+    },
+    {
+      "id": "P35",
+      "requirement": "Submit a GitHub repository link.",
+      "status": "verified",
+      "implementation": ["README.md"],
+      "tests": ["tests/handoff-evidence.test.mjs"],
+      "evidence": ["https://github.com/GowthamTG/anthriq"],
+      "reproductionCommand": "gh repo view GowthamTG/anthriq",
+      "demoTimestamp": "05:15"
+    },
+    {
+      "id": "P36",
+      "requirement": "README documents build/run instructions, dependencies, and development/measurement platforms.",
+      "status": "verified",
+      "implementation": ["README.md", "package.json"],
+      "tests": ["tests/handoff-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t17/rehearsal.schema.json"],
+      "reproductionCommand": "npm run evidence:handoff -- --source git@github.com:GowthamTG/anthriq.git --ref main --output docs/evidence/t17 --workload quiet",
+      "demoTimestamp": "05:15"
+    },
+    {
+      "id": "P37",
+      "requirement": "README provides architecture, process boundaries, and data flow.",
+      "status": "verified",
+      "implementation": ["README.md", "docs/adr/0001-local-acquisition-core.md"],
+      "tests": ["tests/handoff-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t17/README.md"],
+      "reproductionCommand": "npm run evidence:validate-handoff",
+      "demoTimestamp": "05:20"
+    },
+    {
+      "id": "P38",
+      "requirement": "README provides storage detail sufficient for an independent reader.",
+      "status": "verified",
+      "implementation": ["README.md", "docs/recording-format.md"],
+      "tests": ["tests/handoff-evidence.test.mjs"],
+      "evidence": ["docs/waveform.md"],
+      "reproductionCommand": "npm run evidence:validate-handoff",
+      "demoTimestamp": "05:25"
+    },
+    {
+      "id": "P39",
+      "requirement": "README states measured performance and memory, methods, and run durations.",
+      "status": "verified",
+      "implementation": ["README.md"],
+      "tests": ["tests/benchmark.test.mjs", "tests/long-recording-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t15/run-summary.json", "docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm run evidence:validate-acquisition && npm run evidence:validate-long-recording",
+      "demoTimestamp": "05:30"
+    },
+    {
+      "id": "P40",
+      "requirement": "README includes verification output from at least one completed run.",
+      "status": "verified",
+      "implementation": ["README.md"],
+      "tests": ["tests/verification.test.mjs"],
+      "evidence": ["docs/evidence/t15/verification.json"],
+      "reproductionCommand": "npm run evidence:validate-acquisition",
+      "demoTimestamp": "04:20"
+    },
+    {
+      "id": "P41",
+      "requirement": "README states significant decisions, trade-offs, known limitations, and additional-time work.",
+      "status": "verified",
+      "implementation": ["README.md", "docs/decision-audit.md"],
+      "tests": ["tests/handoff-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t17/known-limitations.md"],
+      "reproductionCommand": "npm run evidence:validate-handoff",
+      "demoTimestamp": "05:35"
+    }
+  ],
+  "acceptanceScenarios": [
+    {
+      "id": "A01",
+      "requirement": "Default nominal run verifies with no discrepancy or format errors.",
+      "status": "verified",
+      "implementation": ["core/acquisition.ts", "core/verify.ts"],
+      "tests": ["tests/cli.test.mjs"],
+      "evidence": ["docs/evidence/t15/verification.json"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "04:20"
+    },
+    {
+      "id": "A02",
+      "requirement": "Two nondefault runtime configurations work without source changes.",
+      "status": "verified",
+      "implementation": ["core/config.ts"],
+      "tests": ["tests/configuration.test.mjs"],
+      "evidence": ["docs/evidence/t02/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "00:35"
+    },
+    {
+      "id": "A03",
+      "requirement": "Known values match independent references and repeat identically.",
+      "status": "verified",
+      "implementation": ["core/signal.ts"],
+      "tests": ["tests/configuration.test.mjs"],
+      "evidence": ["docs/waveform.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "00:45"
+    },
+    {
+      "id": "A04",
+      "requirement": "Generator and recorder have distinct process identities and lifecycles.",
+      "status": "verified",
+      "implementation": ["core/acquisition.ts"],
+      "tests": ["tests/cli.test.mjs"],
+      "evidence": ["docs/evidence/t01/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:20"
+    },
+    {
+      "id": "A05",
+      "requirement": "Source pacing is compared with monotonic elapsed time and timing deviation is reported.",
+      "status": "verified",
+      "implementation": ["core/generator.ts"],
+      "tests": ["tests/benchmark.test.mjs"],
+      "evidence": ["docs/evidence/t15/run-summary.json"],
+      "reproductionCommand": "npm run evidence:validate-acquisition",
+      "demoTimestamp": "05:30"
+    },
+    {
+      "id": "A06",
+      "requirement": "A stalled recorder respects the byte budget while source time advances and loss reconciles.",
+      "status": "verified",
+      "implementation": ["core/generator.ts", "core/recorder.ts"],
+      "tests": ["tests/overload.test.mjs"],
+      "evidence": ["docs/evidence/t05/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": null
+    },
+    {
+      "id": "A07",
+      "requirement": "Recorder progress resumes after a stall and later original indices preserve the gap.",
+      "status": "verified",
+      "implementation": ["core/recorder.ts"],
+      "tests": ["tests/overload.test.mjs"],
+      "evidence": ["docs/evidence/t15/run-summary.json"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": null
+    },
+    {
+      "id": "A08",
+      "requirement": "Interrupt drains accepted bytes and retains readable reconciled data.",
+      "status": "verified",
+      "implementation": ["core/acquisition.ts"],
+      "tests": ["tests/cli.test.mjs"],
+      "evidence": ["docs/evidence/t04/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "01:35"
+    },
+    {
+      "id": "A09",
+      "requirement": "Fatal child or disk failure becomes bounded failure without false PASS.",
+      "status": "verified",
+      "implementation": ["core/acquisition.ts", "core/recorder.ts"],
+      "tests": ["tests/failures.test.mjs"],
+      "evidence": ["docs/evidence/t04/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": null
+    },
+    {
+      "id": "A10",
+      "requirement": "A truncated tail exposes a complete prefix and explicit validation failure.",
+      "status": "verified",
+      "implementation": ["core/storage.ts", "core/verify.ts"],
+      "tests": ["tests/inspection.test.mjs", "tests/verification.test.mjs"],
+      "evidence": ["docs/evidence/t03/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": null
+    },
+    {
+      "id": "A11",
+      "requirement": "Metadata fields, bytes, frame/sample counts, and duration reconcile.",
+      "status": "verified",
+      "implementation": ["core/metadata.ts"],
+      "tests": ["tests/inspection.test.mjs"],
+      "evidence": ["docs/recording-format.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:00"
+    },
+    {
+      "id": "A12",
+      "requirement": "Range boundaries and time conversion follow the documented contract.",
+      "status": "verified",
+      "implementation": ["core/storage.ts"],
+      "tests": ["tests/range.test.mjs"],
+      "evidence": ["docs/evidence/t08/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:20"
+    },
+    {
+      "id": "A13",
+      "requirement": "Ordered noncontiguous channel subsets work and invalid selections fail.",
+      "status": "verified",
+      "implementation": ["core/storage.ts"],
+      "tests": ["tests/range.test.mjs"],
+      "evidence": ["docs/evidence/t08/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:20"
+    },
+    {
+      "id": "A14",
+      "requirement": "Gap-aware seeks find original indices using bounded indexed reads.",
+      "status": "verified",
+      "implementation": ["core/storage.ts"],
+      "tests": ["tests/range.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm run evidence:validate-long-recording",
+      "demoTimestamp": "03:15"
+    },
+    {
+      "id": "A15",
+      "requirement": "CSV and JSON-lines stream exact observations within bounded memory.",
+      "status": "verified",
+      "implementation": ["core/export.ts", "core/cli.ts"],
+      "tests": ["tests/range.test.mjs", "tests/long-recording-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm run evidence:validate-long-recording",
+      "demoTimestamp": "02:35"
+    },
+    {
+      "id": "A16",
+      "requirement": "Native playback emits the complete selected sequence with measured pacing.",
+      "status": "verified",
+      "implementation": ["core/playback.ts"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "02:55"
+    },
+    {
+      "id": "A17",
+      "requirement": "Slower and faster playback preserve sequence and observed timing ratios.",
+      "status": "verified",
+      "implementation": ["core/playback.ts"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "03:20"
+    },
+    {
+      "id": "A18",
+      "requirement": "Pause/resume emits no paused output and neither skips nor repeats frames.",
+      "status": "verified",
+      "implementation": ["core/playback.ts"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t11/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "03:05"
+    },
+    {
+      "id": "A19",
+      "requirement": "Seek/speed/channel commands cannot leak stale pending output.",
+      "status": "verified",
+      "implementation": ["core/playback.ts"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "03:15"
+    },
+    {
+      "id": "A20",
+      "requirement": "Playback preserves gaps, applies duplicate policy, and emits the final frame once.",
+      "status": "verified",
+      "implementation": ["core/playback.ts"],
+      "tests": ["tests/playback.test.mjs"],
+      "evidence": ["docs/evidence/t16/summary.json"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "03:35"
+    },
+    {
+      "id": "A21",
+      "requirement": "Missing fixture reports exact initial, interior, and trailing loss.",
+      "status": "verified",
+      "implementation": ["core/diagnostics.ts", "core/verify.ts"],
+      "tests": ["tests/diagnostics.test.mjs"],
+      "evidence": ["docs/evidence/t07/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "04:40"
+    },
+    {
+      "id": "A22",
+      "requirement": "Duplicate fixture reports exact count and first physical position.",
+      "status": "verified",
+      "implementation": ["core/diagnostics.ts", "core/verify.ts"],
+      "tests": ["tests/diagnostics.test.mjs"],
+      "evidence": ["docs/evidence/t07/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "04:40"
+    },
+    {
+      "id": "A23",
+      "requirement": "Incorrect fixture reports exact finite/nonfinite errors and first channel position.",
+      "status": "verified",
+      "implementation": ["core/diagnostics.ts", "core/verify.ts"],
+      "tests": ["tests/diagnostics.test.mjs"],
+      "evidence": ["docs/evidence/t07/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "04:40"
+    },
+    {
+      "id": "A24",
+      "requirement": "Combined fixture preserves separate missing, duplicate, and incorrect classes.",
+      "status": "verified",
+      "implementation": ["core/diagnostics.ts", "core/verify.ts"],
+      "tests": ["tests/diagnostics.test.mjs"],
+      "evidence": ["docs/evidence/t07/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "04:40"
+    },
+    {
+      "id": "A25",
+      "requirement": "Malformed versions, counts, ordering, and indices fail explicitly and safely.",
+      "status": "verified",
+      "implementation": ["core/metadata.ts", "core/verify.ts"],
+      "tests": ["tests/verification.test.mjs", "tests/inspection.test.mjs"],
+      "evidence": ["docs/evidence/t06/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": null
+    },
+    {
+      "id": "A26",
+      "requirement": "Verification uses exit 0 for PASS, 1 for completed FAIL, and 2 for operational failure.",
+      "status": "verified",
+      "implementation": ["core/cli.ts"],
+      "tests": ["tests/verification.test.mjs"],
+      "evidence": ["docs/evidence/t06/README.md"],
+      "reproductionCommand": "npm test",
+      "demoTimestamp": "05:00"
+    },
+    {
+      "id": "A27",
+      "requirement": "Slow or disconnected browsers do not cause acquisition loss.",
+      "status": "verified",
+      "implementation": ["server.ts", "core/recorder.ts"],
+      "tests": ["tests/browser/acquire.spec.mjs"],
+      "evidence": ["docs/evidence/t13/README.md"],
+      "reproductionCommand": "npm run test:browser",
+      "demoTimestamp": "01:05"
+    },
+    {
+      "id": "A28",
+      "requirement": "The complete acquire-to-verify workflow works through visible controls.",
+      "status": "verified",
+      "implementation": ["app/page.tsx", "app/recording-details.tsx"],
+      "tests": ["tests/browser/t14-workflow.spec.mjs"],
+      "evidence": ["docs/evidence/t14/README.md"],
+      "reproductionCommand": "npm run test:browser",
+      "demoTimestamp": "00:35"
+    },
+    {
+      "id": "A29",
+      "requirement": "Verification runs independently without blocking acquisition controls or pacing.",
+      "status": "verified",
+      "implementation": ["core/verification-worker.ts", "core/verification.ts"],
+      "tests": ["tests/browser/verification.spec.mjs"],
+      "evidence": ["docs/evidence/t15/browser-verification.json"],
+      "reproductionCommand": "npm run test:browser",
+      "demoTimestamp": "04:10"
+    },
+    {
+      "id": "A30",
+      "requirement": "A fresh dependency install and documented start command work and README results reproduce.",
+      "status": "verified",
+      "implementation": ["scripts/handoff-evidence.mjs", "README.md"],
+      "tests": ["tests/handoff-evidence.test.mjs"],
+      "evidence": ["docs/evidence/t17/rehearsal.schema.json"],
+      "reproductionCommand": "npm run evidence:handoff -- --source git@github.com:GowthamTG/anthriq.git --ref main --output docs/evidence/t17 --workload quiet",
+      "demoTimestamp": "05:15"
+    }
+  ],
+  "limitations": [
+    {
+      "name": "General-purpose operating system",
+      "impact": "Scheduling and playback are measured but are not hard real-time guarantees.",
+      "rationale": "The assessment asks for observed pacing; macOS and Node.js do not provide deterministic real-time scheduling.",
+      "nextWork": "Use a real-time host and hardware clock if hard deadlines become a product requirement."
+    },
+    {
+      "name": "Frame-major channel reads",
+      "impact": "Channel-subset retrieval reads unselected channel payload within matching frames.",
+      "rationale": "The layout keeps acquisition, recovery, and binary seeking simple; measured amplification is disclosed.",
+      "nextWork": "Evaluate a versioned channel-blocked or columnar format for channel-heavy analytical workloads."
+    },
+    {
+      "name": "Local single-owner workbench",
+      "impact": "One acquisition and one playback session run on one host; there is no authentication or distributed coordination.",
+      "rationale": "Remote services and multi-user scope are not required by the assessment.",
+      "nextWork": "Add explicit identity, authorization, and remote durable storage only for a defined hosted product."
+    },
+    {
+      "name": "Crash durability",
+      "impact": "Clean stop syncs accepted files, but sudden power loss and arbitrary corruption are detected rather than automatically repaired.",
+      "rationale": "Power-loss transactions and repair are outside the assessment and would materially expand the storage protocol.",
+      "nextWork": "Add checksummed segments, recovery journals, and atomic bundle manifests if required."
+    },
+    {
+      "name": "Validated platforms",
+      "impact": "Measurements are from the recorded macOS/Apple M5 Pro environment; CI verifies Ubuntu behavior but not sustained equivalence.",
+      "rationale": "The repository does not claim unmeasured cross-platform performance.",
+      "nextWork": "Repeat sustained evidence on each supported deployment platform."
+    },
+    {
+      "name": "Forward-only variable rate",
+      "impact": "Playback supports slower and faster positive multiples, not reverse chronological playback.",
+      "rationale": "The PDF's 'slower and faster directions' is interpreted as multiples below and above native speed; the requirement does not explicitly request reverse playback.",
+      "nextWork": "Add reverse indexed playback only if clarified as a product requirement."
+    }
+  ]
+}

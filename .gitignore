@@ -8,3 +8,5 @@ node_modules/
 test-results/
 playwright-report/
 *.tsbuildinfo
+/docs/evidence/t17/*.mov
+/docs/evidence/t17/*.m4v

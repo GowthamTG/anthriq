@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "recordedAt",
+    "recordedCommit",
+    "runtimeTreeSha256",
+    "filename",
+    "durationSeconds",
+    "width",
+    "height",
+    "videoCodec",
+    "audioCodec",
+    "audioPresent",
+    "byteSize",
+    "asset",
+    "release",
+    "shots",
+    "review"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "SCOPE-T17-VIDEO/1" },
+    "status": { "const": "reviewed" },
+    "recordedAt": { "type": "string" },
+    "recordedCommit": { "type": "string" },
+    "runtimeTreeSha256": { "type": "string" },
+    "filename": { "const": "scope-t17-demo.m4v" },
+    "durationSeconds": { "type": "number", "minimum": 300, "maximum": 420 },
+    "width": { "const": 1920 },
+    "height": { "const": 1080 },
+    "videoCodec": { "const": "H.264" },
+    "audioCodec": { "const": "AAC" },
+    "audioPresent": { "const": true },
+    "byteSize": { "type": "integer", "minimum": 1 },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sha256"],
+      "properties": {
+        "url": { "type": "string" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "url", "visibility"],
+      "properties": {
+        "tag": { "const": "t17-submission" },
+        "url": { "type": "string" },
+        "visibility": { "const": "private-repository-access" }
+      }
+    },
+    "shots": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "timestamp", "description", "reviewed"],
+        "properties": {
+          "id": { "type": "string" },
+          "timestamp": { "type": "string" },
+          "description": { "type": "string" },
+          "reviewed": { "const": true }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readable",
+        "truthful",
+        "audioClear",
+        "noCredentials",
+        "localPlaybackVerified",
+        "reviewedByOwner"
+      ],
+      "properties": {
+        "readable": { "const": true },
+        "truthful": { "const": true },
+        "audioClear": { "const": true },
+        "noCredentials": { "const": true },
+        "localPlaybackVerified": { "const": true },
+        "reviewedByOwner": { "const": true }
+      }
+    }
+  }
+}

@@ -65,8 +65,13 @@ export interface RecordingMetadata extends Settings {
   peakQueueBytes?: number;
   recorderPeakRssBytes?: number;
   recorderStall?: RecorderStall;
+  retention?: RecordingRetention;
   diagnostic?: DiagnosticProvenance;
   error?: string;
+}
+export interface RecordingRetention {
+  format: 'SCOPE-RETENTION/1';
+  class: 'temporary-public-demo';
 }
 export const DIAGNOSTIC_SCENARIOS = [
   'clean',

@@ -1,5 +1,6 @@
 import type {
   RecordingMetadata,
+  RecordingRetention,
   RecorderStall,
   GeneratorMetrics,
   LivePreview,
@@ -18,6 +19,7 @@ import { writeAll, saveMetadata } from './storage.ts';
 
 const directory = resolve(process.argv[2]);
 const settings = config(JSON.parse(process.argv[3] || '{}'));
+const retention = JSON.parse(process.argv[4] || 'null') as RecordingRetention | null;
 await mkdir(directory, { recursive: true });
 const file = await open(join(directory, 'frames.bin'), 'wx');
 const lossFile = await open(join(directory, 'losses.jsonl'), 'wx');
@@ -38,6 +40,7 @@ const metadata: RecordingMetadata = {
   layout: 'uint64 frame index, then interleaved channel values',
   waveform: WAVEFORM,
   recordBytes: stride(settings.channels),
+  ...(retention ? { retention } : {}),
 };
 await saveMetadata(directory, metadata);
 const generator = fork(new URL('./generator.ts', import.meta.url), [JSON.stringify(settings)], {

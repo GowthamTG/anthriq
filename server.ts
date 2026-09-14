@@ -38,7 +38,11 @@ const port = Number(process.env.PORT || 3000);
 const runtime = serverRuntime();
 const hostname = runtime.hostname;
 const root = resolve(process.env.SCOPE_RECORDINGS_DIR || 'recordings');
-const acquisition = new Acquisition(root, runtime.publicDemo ? { seconds: 3 } : {});
+const acquisition = new Acquisition(
+  root,
+  runtime.publicDemo ? { seconds: 3 } : {},
+  runtime.publicDemo ? { format: 'SCOPE-RETENTION/1', class: 'temporary-public-demo' } : undefined,
+);
 const verification = new Verification(root);
 const playback = new PlaybackOwner(root);
 const app = next({ dev, hostname, port });
@@ -356,21 +360,26 @@ const server = createServer(async (req, res) => {
         validatePublicDemoSettings(settings);
         if (['starting', 'recording', 'stopping'].includes(acquisition.snapshot().status))
           return json(res, 409, { error: 'An acquisition is already active' });
-        acquisitionStarts.take();
+        acquisitionStarts.check();
+        const acquisitionState = acquisition.snapshot();
+        const verificationState = verification.snapshot();
+        const playbackState = playback.snapshot();
         const protectedIds = new Set(
           [
-            ['starting', 'recording', 'stopping'].includes(acquisition.snapshot().status)
-              ? acquisition.snapshot().id
+            ['starting', 'recording', 'stopping'].includes(acquisitionState.status)
+              ? acquisitionState.id
               : null,
-            ['creating', 'running'].includes(verification.snapshot().status)
-              ? verification.snapshot().recordingId
+            ['creating', 'running'].includes(verificationState.status)
+              ? verificationState.recordingId
               : null,
-            playback.snapshot().recordingId,
+            playbackState.recordingId,
           ].filter((id): id is string => Boolean(id)),
         );
         await prunePublicDemoRecordings(root, protectedIds);
       }
-      return json(res, 202, acquisition.start(settings));
+      const state = acquisition.start(settings);
+      if (runtime.publicDemo) acquisitionStarts.take();
+      return json(res, 202, state);
     }
     const previewControl = url.pathname.match(/^\/api\/acquisitions\/([^/]+)\/preview$/);
     if (req.method === 'POST' && previewControl) {
@@ -455,12 +464,10 @@ const server = createServer(async (req, res) => {
       ) {
         return json(res, 400, { error: 'Provide only a recordingId' });
       }
+      if (runtime.publicDemo) verificationStarts.check();
+      const state = await verification.start((body as { recordingId: string }).recordingId);
       if (runtime.publicDemo) verificationStarts.take();
-      return json(
-        res,
-        202,
-        await verification.start((body as { recordingId: string }).recordingId),
-      );
+      return json(res, 202, state);
     }
     if (req.method === 'POST' && url.pathname === '/api/verification-scenarios') {
       if (runtime.publicDemo)

@@ -49,6 +49,7 @@ export function ConfigurationForm({
   runtime?: RuntimeInfo | null;
 }) {
   const publicDemo = runtime?.mode === 'public-demo' ? runtime.limits : null;
+  const showDiagnostics = runtime === undefined || runtime?.mode === 'local';
   const aggregate = Number(draft.channels) * Number(draft.sampleRate);
   const inputClass =
     'w-full border border-line bg-background px-3 py-2.5 font-mono text-sm text-[#f0f0eb] focus:border-accent disabled:opacity-60 aria-invalid:border-[#ff9c89]';
@@ -127,7 +128,7 @@ export function ConfigurationForm({
           </div>
         ))}
       </fieldset>
-      {!publicDemo && (
+      {showDiagnostics && (
         <details className="mt-5 border-t border-line pt-4">
           <summary className="cursor-pointer text-xs text-muted">Overload diagnostics</summary>
           <p className="my-3 text-xs leading-relaxed text-muted">

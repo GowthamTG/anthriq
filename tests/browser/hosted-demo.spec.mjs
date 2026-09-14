@@ -69,12 +69,27 @@ test('public mode completes the real capture and verification flow without leaki
 
   const details = await (await fetch(`${base}/api/recordings/${recordingId}`)).json();
   expect(details.location).toBeUndefined();
+  expect(details.retention).toEqual({
+    format: 'SCOPE-RETENTION/1',
+    class: 'temporary-public-demo',
+  });
   expect(JSON.stringify(details)).not.toContain(root);
   const missing = await (await fetch(`${base}/api/recordings/missing-recording`)).json();
   expect(missing).toEqual({ error: 'Recording not found' });
   expect(JSON.stringify(missing)).not.toContain(root);
 
-  await page.goto(`${base}/verify?id=${recordingId}`);
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const rejected = await request.post(`${base}/api/verifications`, {
+      data: { recordingId: `missing-${attempt}` },
+    });
+    expect(rejected.status()).toBe(404);
+  }
+
+  await page.getByRole('link', { name: 'Open in Recordings' }).click();
+  await expect(page.getByTestId('playback-status')).toHaveText('Paused');
+  await page.getByRole('button', { name: /Play|Resume/ }).click();
+  await expect(page.getByTestId('playback-status')).toHaveText('Ended', { timeout: 5_000 });
+  await page.getByRole('link', { name: 'Verify recording' }).click();
   await expect(page.getByTestId('public-demo-verification-note')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Integrity scenario lab' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Start verification' }).click();
@@ -109,4 +124,36 @@ test('recordings survive a hosted service restart on the same persistent root', 
   const response = await request.get(`${base}/api/recordings/${recordingId}`);
   expect(response.status()).toBe(200);
   expect(await response.json()).toMatchObject({ id: recordingId, status: 'completed' });
+});
+
+test('public API throttles accepted starts and returns a retry interval', async ({ request }) => {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const response = await request.post(`${base}/api/acquisitions`, {
+      data: { channels: 1, sampleRate: 1, seconds: 1, displayName: `Rate limit ${attempt}` },
+    });
+    expect(response.status()).toBe(202);
+    await expect
+      .poll(async () => (await (await fetch(`${base}/api/state`)).json()).status)
+      .toBe('completed');
+  }
+  const acquisitionRejected = await request.post(`${base}/api/acquisitions`, {
+    data: { channels: 1, sampleRate: 1, seconds: 1 },
+  });
+  expect(acquisitionRejected.status()).toBe(429);
+  expect(Number(acquisitionRejected.headers()['retry-after'])).toBeGreaterThan(0);
+
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const response = await request.post(`${base}/api/verifications`, {
+      data: { recordingId },
+    });
+    expect(response.status()).toBe(202);
+    await expect
+      .poll(async () => (await (await fetch(`${base}/api/verification`)).json()).status)
+      .toBe('passed');
+  }
+  const verificationRejected = await request.post(`${base}/api/verifications`, {
+    data: { recordingId },
+  });
+  expect(verificationRejected.status()).toBe(429);
+  expect(Number(verificationRejected.headers()['retry-after'])).toBeGreaterThan(0);
 });

@@ -2,6 +2,7 @@ import type {
   AcquisitionState,
   AcquisitionStatus,
   RecordingMetadata,
+  RecordingRetention,
   SettingsInput,
   RecorderCommand,
   RecorderMessage,
@@ -29,8 +30,14 @@ export class Acquisition {
   resolveFinished: (state: AcquisitionState) => void = () => {};
   previews = new Map<string, import('./contracts.ts').LivePreview>();
   previewChannels = new Map<string, number[]>();
-  constructor(root = resolve('recordings'), initialSettings: SettingsInput = {}) {
+  recordingRetention?: RecordingRetention;
+  constructor(
+    root = resolve('recordings'),
+    initialSettings: SettingsInput = {},
+    recordingRetention?: RecordingRetention,
+  ) {
     this.root = root;
+    this.recordingRetention = recordingRetention;
     this.state = {
       status: 'idle',
       id: null,
@@ -86,7 +93,7 @@ export class Acquisition {
       disconnected = false;
     const child = fork(
       new URL('./recorder.ts', import.meta.url),
-      [directory, JSON.stringify(effective)],
+      [directory, JSON.stringify(effective), JSON.stringify(this.recordingRetention ?? null)],
       { serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] },
     );
     this.child = child;

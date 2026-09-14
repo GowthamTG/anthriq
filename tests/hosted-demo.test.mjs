@@ -24,6 +24,10 @@ test('runtime defaults to loopback and public mode requires an explicit public b
     },
   });
   assert.throws(() => serverRuntime({ SCOPE_DEMO_MODE: 'public' }), /SCOPE_HOST=0\.0\.0\.0/);
+  assert.throws(
+    () => serverRuntime({ SCOPE_HOST: '0.0.0.0' }),
+    /Non-loopback hosts require SCOPE_DEMO_MODE=public/,
+  );
   assert.equal(
     serverRuntime({ SCOPE_DEMO_MODE: 'public', SCOPE_HOST: '0.0.0.0' }).info.mode,
     'public-demo',
@@ -101,19 +105,43 @@ const metadata = (id, startedAt) => ({
   droppedFrames: 0,
 });
 
-async function recording(root, id, startedAt) {
+async function recording(root, id, startedAt, hosted = true) {
   const directory = join(root, id);
   await mkdir(directory);
-  await writeFile(join(directory, 'metadata.json'), JSON.stringify(metadata(id, startedAt)));
+  await writeFile(
+    join(directory, 'metadata.json'),
+    JSON.stringify({
+      ...metadata(id, startedAt),
+      ...(hosted
+        ? { retention: { format: 'SCOPE-RETENTION/1', class: 'temporary-public-demo' } }
+        : {}),
+    }),
+  );
   await writeFile(join(directory, 'frames.bin'), '');
 }
 
-test('retention removes only the oldest unprotected recording inside its root', async (t) => {
+test('retention removes only hosted bundles and respects every active owner and root boundary', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'scope-public-retention-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  await recording(root, 'oldest', '2026-01-01T00:00:00.000Z');
-  await recording(root, 'protected', '2026-01-02T00:00:00.000Z');
-  await recording(root, 'newest', '2026-01-03T00:00:00.000Z');
-  assert.deepEqual(await prunePublicDemoRecordings(root, new Set(['protected']), 3), ['oldest']);
-  assert.deepEqual((await readdir(root)).sort(), ['newest', 'protected']);
+  const outside = await mkdtemp(join(tmpdir(), 'scope-local-evidence-'));
+  t.after(() =>
+    Promise.all([
+      rm(root, { recursive: true, force: true }),
+      rm(outside, { recursive: true, force: true }),
+    ]),
+  );
+  await recording(outside, 'outside-hosted', '2025-01-01T00:00:00.000Z');
+  await recording(root, 'local-evidence', '2025-01-01T00:00:00.000Z', false);
+  const protectedIds = new Set(['active-acquisition', 'active-verification', 'active-playback']);
+  const ids = [...protectedIds, ...Array.from({ length: 11 }, (_, index) => `hosted-${index}`)];
+  for (const [index, id] of ids.entries())
+    await recording(root, id, new Date(Date.UTC(2026, 0, index + 1)).toISOString());
+
+  assert.deepEqual(await prunePublicDemoRecordings(root, protectedIds), [
+    'hosted-0',
+    'hosted-1',
+    'hosted-2',
+  ]);
+  assert.ok((await readdir(root)).includes('local-evidence'));
+  assert.deepEqual(await readdir(outside), ['outside-hosted']);
+  for (const id of protectedIds) assert.ok((await readdir(root)).includes(id));
 });

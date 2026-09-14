@@ -40,8 +40,10 @@ account and repository authorization remain owner-managed dashboard state.
   recorder buffer. Continuous captures and recorder fault diagnostics are rejected.
 - Six acquisition starts and twelve physical verification starts are allowed per rolling hour per
   running service. Existing SSE limits continue to protect live observers.
-- At most twelve recording bundles are retained. Before accepting another capture, the oldest
-  finalized bundle that is not active in acquisition, verification, or playback is removed.
+- At most twelve public-demo recording bundles are retained. Each is persistently marked as
+  temporary. Before accepting another capture, the oldest marked, finalized bundle that is not
+  active in acquisition, verification, or playback is removed. Unmarked local evidence is never a
+  cleanup candidate, even if it is present under the configured root.
 - Disposable integrity scenarios are disabled. Verification of genuine acquisitions remains
   available.
 - Public inspection responses identify persistent hosted storage without exposing its absolute
@@ -49,8 +51,9 @@ account and repository authorization remain owner-managed dashboard state.
 - The service is intentionally single-owner and shared. Visitors can observe or affect the same
   acquisition, playback, and verification state; this is disclosed in the interface.
 
-Local mode is the default. Without `SCOPE_DEMO_MODE=public`, the original configuration range,
-diagnostic scenarios, local paths, and continuous acquisition behavior remain available.
+Local mode is the default. Without `SCOPE_DEMO_MODE=public`, the server remains loopback-only and
+the original configuration range, diagnostic scenarios, local paths, and continuous acquisition
+behavior remain available.
 
 ## Publication gate
 

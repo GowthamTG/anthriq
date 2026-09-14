@@ -249,7 +249,7 @@ export default function Verify() {
             <p>{job.error}</p>
           </div>
         )}
-        {runtime?.mode !== 'public-demo' && (
+        {runtime?.mode === 'local' && (
           <section aria-label="Integrity scenario lab" className="mb-6 border border-line bg-panel">
             <div className="flex flex-wrap items-start justify-between gap-5 border-b border-line p-5">
               <div>

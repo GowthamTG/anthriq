@@ -95,9 +95,9 @@ updates are display loss, never missing recorded samples.
 
 The server binds to `127.0.0.1` by default. `PORT` overrides port 3000, and `SCOPE_RECORDINGS_DIR`
 overrides the default `recordings` directory. Use a new writable location; recordings are never
-overwritten. `SCOPE_HOST` changes the bind address; public demo mode requires the explicit pair
-`SCOPE_DEMO_MODE=public` and `SCOPE_HOST=0.0.0.0`, which also activates its resource and
-data-exposure safeguards. These environment variables work for both development and production
+overwritten. Local mode accepts only loopback bind addresses. A non-loopback bind requires the
+explicit pair `SCOPE_DEMO_MODE=public` and `SCOPE_HOST=0.0.0.0`, which also activates the resource
+and data-exposure safeguards. These environment variables work for both development and production
 launch.
 
 ## Recordings library

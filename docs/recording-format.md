@@ -56,6 +56,11 @@ An optional `diagnostic` object marks a disposable demonstration bundle. Its fie
 `combined`, the `sourceRecordingId`, and `createdAt`. The marker is validated when present;
 recordings created before T07 remain compatible without it.
 
+An optional `retention` object marks recordings created by the bounded public service. Its exact
+fields are `format: SCOPE-RETENTION/1` and `class: temporary-public-demo`. Public cleanup considers
+only bundles carrying this validated marker; ordinary local and older recordings remain compatible
+without it and are never public-retention candidates.
+
 `expectedFrames` is the independently confirmed exclusive source extent, or null while unconfirmed.
 `recordedFrames` is the recorder's physical frame count; `totalSamples` is that count multiplied by
 channels. `droppedFrames` counts known omitted source frames. A normal finalized recording

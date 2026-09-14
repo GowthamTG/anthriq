@@ -31,6 +31,8 @@ export function serverRuntime(environment: NodeJS.ProcessEnv = process.env): Ser
   const hostname = environment.SCOPE_HOST || '127.0.0.1';
   if (publicDemo && hostname !== '0.0.0.0')
     throw new Error('Public demo mode requires SCOPE_HOST=0.0.0.0');
+  if (!publicDemo && !['127.0.0.1', 'localhost'].includes(hostname))
+    throw new Error('Non-loopback hosts require SCOPE_DEMO_MODE=public');
   return {
     hostname,
     publicDemo,
@@ -79,7 +81,7 @@ export class RollingWindowLimit {
     this.windowMs = windowMs;
   }
 
-  take(now = Date.now()) {
+  check(now = Date.now()) {
     this.starts = this.starts.filter((started) => now - started < this.windowMs);
     if (this.starts.length >= this.maximum) {
       const retryAfterSeconds = Math.max(
@@ -91,15 +93,19 @@ export class RollingWindowLimit {
         retryAfterSeconds,
       });
     }
+  }
+
+  take(now = Date.now()) {
+    this.check(now);
     this.starts.push(now);
   }
 }
 
-export function hideHostedLocation<T extends RecordingInspection>(recording: T): T {
-  if (recording.location === undefined) return recording;
-  const copy = { ...recording };
-  delete copy.location;
-  return copy;
+export function hideHostedLocation<T extends RecordingInspection>(
+  recording: T,
+): Omit<T, 'location'> {
+  const { location: _location, ...publicRecording } = recording;
+  return publicRecording;
 }
 
 export function hideHostedLibraryLocations(page: LibraryPage): LibraryPage {
@@ -129,10 +135,11 @@ export async function prunePublicDemoRecordings(
   let recordingCount = 0;
   for await (const entry of directory) {
     if (!entry.isDirectory() || !recordingId(entry.name)) continue;
-    recordingCount++;
-    if (protectedIds.has(entry.name)) continue;
     try {
       const recording = await inspect(join(safeRoot, entry.name));
+      if (recording.retention?.class !== 'temporary-public-demo') continue;
+      recordingCount++;
+      if (protectedIds.has(entry.name)) continue;
       if (!['completed', 'failed'].includes(recording.status)) continue;
       candidates.push({ id: entry.name, startedAt: Date.parse(recording.startedAt) || 0 });
     } catch {

@@ -7,6 +7,10 @@ import { OverloadTelemetry } from './overload-telemetry';
 import { RecordingDetails } from './recording-details';
 import { config } from '../core/config';
 import { ConfigurationForm, draftFrom, type ConfigurationDraft } from './configuration-form';
+import { requestJson } from './http';
+import { useServiceEvents } from './use-service-events';
+import { VerificationStatusText } from './verification-status';
+import { WorkbenchHeader } from './workbench-header';
 const SignalTrace = dynamic(() => import('./signal-trace').then((module) => module.SignalTrace), {
   ssr: false,
 });
@@ -44,12 +48,10 @@ function clock(value: number | null | undefined) {
 
 export default function Acquire() {
   const [state, setState] = useState<AcquisitionState | null>(null);
-  const [connection, setConnection] = useState<'connecting' | 'live' | 'reconnecting' | 'offline'>(
-    'connecting',
-  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<RecordingInspection | null>(null);
+  const [recordingSummary, setRecordingSummary] = useState<RecordingInspection | null>(null);
   const [inspecting, setInspecting] = useState(false);
   const [draft, setDraft] = useState(() => draftFrom(config()));
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -58,77 +60,24 @@ export default function Acquire() {
   const selectedChannels = useRef([0, 1, 2, 3]);
   const subscribedRecording = useRef<string | null>(null);
   useEffect(() => setClientId(crypto.randomUUID()), []);
-  useEffect(() => {
-    if (!clientId) return;
-    let events: EventSource | null = null;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    let cancelled = false;
-    let delay = 250;
-    const apply = (snapshot: AcquisitionState) => {
-      setState(snapshot);
-      if (observedId.current !== snapshot.id) {
-        setDraft(draftFrom(snapshot.settings));
-        observedId.current = snapshot.id;
-      }
-    };
-    const connect = async () => {
-      if (cancelled) return;
-      setConnection((current) => (current === 'connecting' ? current : 'reconnecting'));
-      try {
-        // A browser session is established by SSE; use the public current state to hydrate before
-        // that subscription exists, then replace it with the session-specific SSE snapshot.
-        const response = await fetch('/api/state');
-        if (!response.ok) throw new Error('Snapshot unavailable');
-        const snapshot = await response.json();
-        apply(snapshot);
-        if (cancelled) return;
-        // The selected channels belong to this browser, but the previous recording may have
-        // used fewer channels than the default four.  Clamp before opening the strict SSE
-        // subscription so a fresh tab can always establish its initial connection.
-        const channels = selectedChannels.current.filter(
-          (channel) => channel < snapshot.settings.channels,
-        );
-        selectedChannels.current = channels.length ? channels : [0];
-        const query = new URLSearchParams({
-          clientId,
-          channels: selectedChannels.current.join(','),
-        });
-        events = new EventSource(`/api/events?${query}`);
-        events.addEventListener('state', (event) => {
-          apply(JSON.parse(event.data));
-          delay = 250;
-          setConnection('live');
-        });
-        events.onerror = () => {
-          events?.close();
-          events = null;
-          if (cancelled) return;
-          setConnection(navigator.onLine ? 'reconnecting' : 'offline');
-          retry = setTimeout(connect, delay);
-          delay = Math.min(4000, delay * 2);
-        };
-      } catch {
-        if (cancelled) return;
-        setConnection(navigator.onLine ? 'reconnecting' : 'offline');
-        retry = setTimeout(connect, delay);
-        delay = Math.min(4000, delay * 2);
-      }
-    };
-    const online = () => {
-      if (!events && !retry) void connect();
-    };
-    const offline = () => setConnection('offline');
-    window.addEventListener('online', online);
-    window.addEventListener('offline', offline);
-    connect();
-    return () => {
-      cancelled = true;
-      if (retry) clearTimeout(retry);
-      events?.close();
-      window.removeEventListener('online', online);
-      window.removeEventListener('offline', offline);
-    };
-  }, [clientId]);
+  const applyState = (snapshot: AcquisitionState) => {
+    setState(snapshot);
+    const channels = selectedChannels.current.filter(
+      (channel) => channel < snapshot.settings.channels,
+    );
+    selectedChannels.current = channels.length ? channels : [0];
+    if (observedId.current !== snapshot.id) {
+      setDraft(draftFrom(snapshot.settings));
+      observedId.current = snapshot.id;
+    }
+  };
+  const connection = useServiceEvents({
+    url: clientId ? `/api/events?clientId=${encodeURIComponent(clientId)}` : null,
+    snapshot: clientId
+      ? { url: '/api/state', apply: (value) => applyState(value as AcquisitionState) }
+      : undefined,
+    handlers: { state: (value) => applyState(value as AcquisitionState) },
+  });
 
   const connected = connection === 'live';
 
@@ -185,6 +134,31 @@ export default function Acquire() {
         }
       : null);
 
+  useEffect(() => {
+    if (!state?.id || !['completed', 'failed'].includes(state.status)) {
+      setRecordingSummary(null);
+      return;
+    }
+    let controller: AbortController | null = null;
+    const refreshSummary = () => {
+      controller?.abort();
+      controller = new AbortController();
+      requestJson<RecordingInspection>(`/api/acquisitions/${state.id}`, {
+        signal: controller.signal,
+      })
+        .then(setRecordingSummary)
+        .catch(() => {
+          // The explicit Inspect action reports failures; background refresh preserves last truth.
+        });
+    };
+    refreshSummary();
+    window.addEventListener('focus', refreshSummary);
+    return () => {
+      controller?.abort();
+      window.removeEventListener('focus', refreshSummary);
+    };
+  }, [state?.id, state?.status]);
+
   function changeSetting(key: keyof ConfigurationDraft, value: string) {
     setError(null);
     setDraft((previous) => ({ ...previous, [key]: value }));
@@ -195,7 +169,10 @@ export default function Acquire() {
     setBusy(true);
     setError(null);
     setFields({});
-    if (action === 'start') setDetails(null);
+    if (action === 'start') {
+      setDetails(null);
+      setRecordingSummary(null);
+    }
     try {
       const response = await fetch(
         action === 'start' ? '/api/acquisitions' : `/api/acquisitions/${state?.id}/stop`,
@@ -209,7 +186,7 @@ export default function Acquire() {
       const result = await response.json();
       if (!response.ok) {
         setFields(result.fields || {});
-        throw new Error(result.error);
+        throw new Error(result.error || `Request failed (${response.status}).`);
       }
       setState(result);
     } catch (error) {
@@ -223,9 +200,8 @@ export default function Acquire() {
     setInspecting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/acquisitions/${state?.id}`);
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      const result = await requestJson<RecordingInspection>(`/api/acquisitions/${state?.id}`);
+      setRecordingSummary(result);
       setDetails(result);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Request failed');
@@ -242,62 +218,28 @@ export default function Acquire() {
       : [...current, channel].sort((left, right) => left - right);
     if (!channels.length) return setError('Keep at least one live preview channel selected.');
     if (channels.length > 4) return setError('Show at most four live preview channels at once.');
-    const response = await fetch(`/api/acquisitions/${state.id}/preview`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId, channels }),
-    });
-    const result = await response.json();
-    if (!response.ok) return setError(result.error || 'Preview selection failed');
-    selectedChannels.current = channels;
-    setState(result);
+    try {
+      const result = await requestJson<AcquisitionState>(`/api/acquisitions/${state.id}/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, channels }),
+      });
+      selectedChannels.current = channels;
+      setState(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Preview selection failed');
+    }
   }
 
   return (
     <>
-      <header className="topbar flex h-[86px] items-center justify-between border-b border-line px-12 max-[1050px]:px-7 max-[760px]:h-[70px] max-[760px]:px-5">
-        <a
-          href="/"
-          className="brand flex items-center gap-3 text-[23px] font-extrabold tracking-[3px] max-[760px]:text-xl"
-          aria-label="SCOPE home"
-        >
-          <span
-            className="brand-mark grid size-[30px] place-items-center bg-accent pr-[3px] text-[22px] tracking-[-3px] text-[#111]"
-            aria-hidden="true"
-          >
-            S
-          </span>
-          SCOPE
-          <span className="brand-caption ml-[18px] font-mono text-[9px] font-normal tracking-[1.2px] text-muted max-[760px]:hidden">
-            SIGNAL INSTRUMENTS
-          </span>
-        </a>
-        <nav aria-label="Workspace" className="ml-auto mr-6 flex items-center gap-5 text-xs">
-          <a href="/recordings" className="text-muted hover:text-white">
-            Recordings
-          </a>
-          <a href="/verify" className="text-muted hover:text-white">
-            Verify ↗
-          </a>
-        </nav>
-        <div
-          className="connection flex items-center gap-2.5 font-mono text-[11px] text-muted max-[760px]:gap-[7px] max-[760px]:text-[9px]"
-          data-browser-session={clientId || undefined}
-        >
-          <span className={connected ? 'connection-dot online' : 'connection-dot'} />
-          <span>
-            {connected
-              ? 'Local connection'
-              : connection === 'offline'
-                ? 'Disconnected'
-                : state
-                  ? 'Reconnecting'
-                  : 'Connecting'}
-          </span>
-        </div>
-      </header>
+      <WorkbenchHeader current="acquire" connection={connection} sessionId={clientId} />
 
-      <main className="mx-auto max-w-[1456px] px-12 max-[1050px]:px-7 max-[760px]:px-5 max-[760px]:pb-[90px]">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto max-w-[1456px] px-12 max-[1050px]:px-7 max-[760px]:px-5 max-[760px]:pb-[90px]"
+      >
         <div className="page-heading flex items-center justify-between pt-[49px] pb-[37px] max-[760px]:pt-8 max-[760px]:pb-[25px]">
           <div>
             <p className="eyebrow">
@@ -515,7 +457,7 @@ export default function Acquire() {
 
         {complete && (
           <section
-            className="saved-panel flex items-center justify-between gap-6 border border-t-0 border-line bg-[#191c18] px-[30px] py-[25px] max-[1050px]:items-start max-[760px]:flex-col max-[760px]:gap-5 max-[760px]:px-5 max-[760px]:py-[23px]"
+            className="saved-panel flex items-center justify-between gap-6 border border-t-0 border-line bg-[#191c18] px-[30px] py-[25px] max-[1050px]:items-start max-[900px]:flex-col max-[900px]:gap-5 max-[760px]:px-5 max-[760px]:py-[23px]"
             aria-label="Saved recording"
           >
             <div className="saved-title flex items-center gap-5">
@@ -535,18 +477,59 @@ export default function Acquire() {
                 </p>
               </div>
             </div>
-            <div className="saved-action grid shrink-0 gap-3 text-right max-[760px]:w-full max-[760px]:text-left">
-              <span className="unverified font-mono text-[9px] text-[#c0ba9c]">
-                Integrity not yet verified
+            <div className="saved-action grid shrink-0 gap-3 text-right max-[900px]:w-full max-[900px]:text-left">
+              <span className="font-mono text-[9px]">
+                <VerificationStatusText
+                  status={recordingSummary?.verification.status ?? 'unverified'}
+                />
               </span>
+              <div className="flex flex-wrap justify-end gap-2 max-[900px]:justify-start">
+                <button
+                  className="inspect-button"
+                  onClick={inspect}
+                  disabled={inspecting || !connected}
+                >
+                  {inspecting ? 'Reading metadata…' : 'Inspect recording'}{' '}
+                  <span aria-hidden="true">↗</span>
+                </button>
+                <a
+                  className="inspect-button"
+                  href={`/recordings?id=${encodeURIComponent(state!.id!)}`}
+                >
+                  Open in Recordings
+                </a>
+                <a className="inspect-button" href={`/verify?id=${encodeURIComponent(state!.id!)}`}>
+                  Verify recording
+                </a>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {status === 'failed' && state?.id && (
+          <section
+            className="saved-panel flex items-center justify-between gap-6 border border-t-0 border-[#805a47] bg-[#211916] px-[30px] py-[25px] max-[760px]:flex-col max-[760px]:items-start max-[760px]:px-5"
+            aria-label="Failed recording recovery"
+          >
+            <div>
+              <p className="micro">READABLE PREFIX RETAINED</p>
+              <h2 className="mt-2">Inspect what reached disk.</h2>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                This acquisition failed and cannot be verified as complete. Complete physical
+                records remain available for inspection with explicit prefix acknowledgement.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 className="inspect-button"
                 onClick={inspect}
                 disabled={inspecting || !connected}
               >
-                {inspecting ? 'Reading metadata…' : 'Inspect recording'}{' '}
-                <span aria-hidden="true">↗</span>
+                {inspecting ? 'Reading metadata…' : 'Inspect readable recording'}
               </button>
+              <a className="inspect-button" href={`/recordings?id=${encodeURIComponent(state.id)}`}>
+                Open in Recordings
+              </a>
             </div>
           </section>
         )}

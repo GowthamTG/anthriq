@@ -241,7 +241,7 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
     const element = host.current;
     const readout = cursorReadout.current;
     if (!element || !readout) return;
-    let frame = 0;
+    let animationFrameId = 0;
     const width = () => Math.max(MIN_CHART_WIDTH, Math.floor(element.clientWidth));
     const current = prepareTrace(modelRef.current);
     chart.current = new UPlot(
@@ -251,9 +251,9 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
     );
 
     const schedulePaint = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
+      if (animationFrameId) return;
+      animationFrameId = requestAnimationFrame(() => {
+        animationFrameId = 0;
         const instance = chart.current;
         if (!instance) return;
         const next = prepareTrace(modelRef.current);
@@ -272,7 +272,7 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
 
     return () => {
       paint.current = null;
-      if (frame) cancelAnimationFrame(frame);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
       observer.disconnect();
       chart.current?.destroy();
       chart.current = null;

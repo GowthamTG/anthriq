@@ -120,6 +120,11 @@ test('Verify view distinguishes integrity failure from an operational failure', 
     .click();
   await expect(page.getByTestId('verification-status')).toHaveText('Integrity failed');
   await expect(page.getByTestId('verification-report')).toContainText('FORMAT ERRORS');
+  if (process.env.SCOPE_CAPTURE_T14_EVIDENCE)
+    await page.screenshot({
+      path: join(process.cwd(), 'docs/evidence/t14/desktop-integrity-failed.png'),
+      fullPage: true,
+    });
 
   await page.getByRole('button', { name: /Unreadable reference/ }).click();
   await page
@@ -153,6 +158,7 @@ test('scenario lab creates and verifies a combined disposable recording without 
     ).toBeVisible();
   }
   await lab.getByRole('button', { name: /Create Combined scenario/i }).click();
+  await expect(page.getByTestId('scenario-state')).toHaveAttribute('role', 'status');
   await expect(page.getByTestId('scenario-state')).toContainText(/Creating|Scanning/);
   await expect(page.getByTestId('verification-status')).toHaveText('Integrity failed');
   await expect(page.getByTestId('metric-missing')).toHaveText('96');

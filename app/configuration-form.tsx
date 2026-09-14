@@ -47,7 +47,7 @@ export function ConfigurationForm({
 }) {
   const aggregate = Number(draft.channels) * Number(draft.sampleRate);
   const inputClass =
-    'w-full border border-line bg-background px-3 py-2.5 font-mono text-sm text-[#f0f0eb] outline-none focus:border-accent disabled:opacity-60 aria-invalid:border-[#ff9c89]';
+    'w-full border border-line bg-background px-3 py-2.5 font-mono text-sm text-[#f0f0eb] focus:border-accent disabled:opacity-60 aria-invalid:border-[#ff9c89]';
   return (
     <form
       id="acquisition-setup"

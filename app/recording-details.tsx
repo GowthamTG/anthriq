@@ -1,6 +1,7 @@
 import type { RecordingInspection } from '../core/contracts';
 import { PlaybackPanel } from './playback-panel';
 import { RangeInspector } from './range-inspector';
+import { VerificationStatusText } from './verification-status';
 
 const number = (value: number | null | undefined) =>
   value == null ? 'Unknown' : value.toLocaleString('en-US');
@@ -26,24 +27,7 @@ export function RecordingDetails({ details }: { details: RecordingInspection }) 
               ? 'Needs attention'
               : 'Incomplete / in progress'}
         </span>
-        <span
-          className={
-            details.verification.status === 'verified'
-              ? 'text-[#c1cfb2]'
-              : details.verification.status === 'integrity-failed' ||
-                  details.verification.status === 'stale'
-                ? 'text-[#ffba89]'
-                : 'text-muted'
-          }
-        >
-          {details.verification.status === 'verified'
-            ? 'Integrity verified'
-            : details.verification.status === 'integrity-failed'
-              ? 'Integrity failed'
-              : details.verification.status === 'stale'
-                ? 'Verification stale'
-                : 'Integrity not verified'}
-        </span>
+        <VerificationStatusText status={details.verification.status} />
         {details.status === 'completed' && (
           <a
             className="ml-auto border border-[#78826e] px-3 py-2 text-[10px] text-white hover:bg-[#2e3429]"

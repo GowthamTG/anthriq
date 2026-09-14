@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import UPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import type { Frame, LivePreview } from '../core/contracts';
+import type { PreviewGap } from './live-trace-history';
 
 const CHANNEL_COLORS = ['#ff9b87', '#b8d6a5', '#8fc6cf', '#d4b4db'];
 const CHART_HEIGHT = 276;
 const MIN_CHART_WIDTH = 240;
+const OVERVIEW_PIXELS_PER_SECOND = 320;
+const MAX_OVERVIEW_WIDTH = 4096;
 
 export interface SignalTraceModel {
   channels: readonly number[];
@@ -18,6 +21,9 @@ export interface SignalTraceModel {
   capacity: number;
   nextIndex: number;
   expectedFrames?: number;
+  domainMode?: 'rolling' | 'extent';
+  rollingWindowFrames?: number;
+  previewGaps?: readonly PreviewGap[];
 }
 
 interface PreparedTrace {
@@ -40,8 +46,17 @@ function traceObservations(model: SignalTraceModel): readonly Frame[] {
 }
 
 function traceDomain(model: SignalTraceModel): [number, number] {
+  if (model.domainMode === 'extent') {
+    const confirmedEnd = model.expectedFrames ?? model.nextIndex;
+    return [0, Math.max(1, confirmedEnd - 1)];
+  }
   const stride = Math.max(1, model.decimation);
-  const windowSpan = Math.max(1, stride * Math.max(1, model.capacity - 1));
+  const windowSpan = Math.max(
+    1,
+    model.rollingWindowFrames === undefined
+      ? stride * Math.max(1, model.capacity - 1)
+      : model.rollingWindowFrames - 1,
+  );
   const extentEnd =
     model.expectedFrames === undefined ? null : Math.max(0, model.expectedFrames - 1);
   const initialEnd = extentEnd === null ? windowSpan : Math.min(extentEnd, windowSpan);
@@ -50,7 +65,10 @@ function traceDomain(model: SignalTraceModel): [number, number] {
     extentEnd === null
       ? Math.max(initialEnd, progressedEnd)
       : Math.min(extentEnd, Math.max(initialEnd, progressedEnd));
-  const start = Math.max(0, end - windowSpan);
+  const observations = traceObservations(model);
+  const retainedStart =
+    !model.envelope && observations.length >= model.capacity ? observations[0]?.index : undefined;
+  const start = Math.max(0, end - windowSpan, retainedStart ?? 0);
   return end > start ? [start, end] : [start, start + 1];
 }
 
@@ -121,7 +139,7 @@ function chartOptions(
     height: CHART_HEIGHT,
     padding: [8, 8, 0, 0],
     scales: {
-      x: { time: false, auto: false, range: traceDomain(model) },
+      x: { time: false, auto: false, range: () => traceDomain(currentModel()) },
       y: { auto: false, range: [-1, 1] },
     },
     axes: [
@@ -160,8 +178,15 @@ function chartOptions(
         stroke: axis,
         grid: { show: false },
         ticks: { stroke: grid, width: 1 },
-        values: (_chart, splits) =>
-          splits.map((value) => `${(value / model.sampleRate).toFixed(3)} s`),
+        values: (chart, splits) =>
+          splits.map((value, index) => {
+            if (model.domainMode === 'extent') {
+              const targetLabels = Math.max(2, Math.floor(chart.width / 90));
+              const interval = Math.max(1, Math.ceil(splits.length / targetLabels));
+              if (index % interval !== 0 && index !== splits.length - 1) return '';
+            }
+            return `${(value / model.sampleRate).toFixed(3)} s`;
+          }),
       },
     ],
     cursor: {
@@ -188,10 +213,22 @@ function chartOptions(
     hooks: {
       draw: [
         (chart) => {
-          const envelope = currentModel().envelope;
+          const current = currentModel();
+          const envelope = current.envelope;
           if (!envelope) return;
           const context = chart.ctx;
           context.save();
+          context.fillStyle = 'rgba(255, 155, 135, 0.1)';
+          for (const gap of current.previewGaps ?? []) {
+            const start = Math.max(gap.start, traceDomain(current)[0]);
+            const end = Math.min(gap.end, traceDomain(current)[1]);
+            if (end <= start) continue;
+            const left = chart.valToPos(start, 'x', true);
+            const right = chart.valToPos(end, 'x', true);
+            const top = chart.valToPos(1, 'y', true);
+            const bottom = chart.valToPos(-1, 'y', true);
+            context.fillRect(left, top, right - left, bottom - top);
+          }
           context.lineWidth = 1.5;
           for (const bucket of envelope.buckets) {
             const x = chart.valToPos((bucket.start + bucket.end - 1) / 2, 'x', true);
@@ -225,17 +262,59 @@ function chartOptions(
   };
 }
 
-export function SignalTrace({ model, label }: { model: SignalTraceModel; label: string }) {
+export function SignalTrace({
+  model,
+  label,
+  caption,
+  testIdPrefix = 'playback',
+  horizontalScroll = false,
+  followResetKey,
+}: {
+  model: SignalTraceModel;
+  label: string;
+  caption?: string;
+  testIdPrefix?: string;
+  horizontalScroll?: boolean;
+  followResetKey?: string;
+}) {
   const host = useRef<HTMLDivElement>(null);
+  const scrollHost = useRef<HTMLDivElement>(null);
   const cursorReadout = useRef<HTMLParagraphElement>(null);
   const chart = useRef<UPlot | null>(null);
   const modelRef = useRef(model);
   const paint = useRef<(() => void) | null>(null);
+  const followingRef = useRef(horizontalScroll);
+  const manualScrollIntent = useRef(false);
+  const [followingLatest, setFollowingLatest] = useState(horizontalScroll);
   modelRef.current = model;
-  const configurationKey = `${model.sampleRate}:${model.channels.join(',')}`;
+  const configurationKey = `${model.sampleRate}:${model.channels.join(',')}:${model.domainMode ?? 'rolling'}`;
   const prepared = prepareTrace(model);
   const latest = traceObservations(model).at(-1);
   const latestBucket = model.envelope?.buckets.at(-1);
+  const timelineWidth = horizontalScroll
+    ? Math.min(
+        MAX_OVERVIEW_WIDTH,
+        Math.max(
+          MIN_CHART_WIDTH,
+          Math.ceil(
+            ((model.expectedFrames ?? model.nextIndex) / model.sampleRate) *
+              OVERVIEW_PIXELS_PER_SECOND,
+          ),
+        ),
+      )
+    : null;
+
+  const followLatest = (value: boolean) => {
+    followingRef.current = value;
+    setFollowingLatest(value);
+  };
+
+  const jumpToLatest = () => {
+    const element = scrollHost.current;
+    if (!element) return;
+    followLatest(true);
+    element.scrollLeft = element.scrollWidth - element.clientWidth;
+  };
 
   useEffect(() => {
     const element = host.current;
@@ -257,10 +336,8 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
         const instance = chart.current;
         if (!instance) return;
         const next = prepareTrace(modelRef.current);
-        instance.batch(() => {
-          instance.setData(next.data, false);
-          instance.setScale('x', { min: next.domain[0], max: next.domain[1] });
-        });
+        instance.setData(next.data, false);
+        instance.setScale('x', { min: next.domain[0], max: next.domain[1] });
       });
     };
     paint.current = schedulePaint;
@@ -281,30 +358,114 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
 
   useEffect(() => paint.current?.(), [model]);
 
+  useEffect(() => {
+    if (!horizontalScroll) return;
+    followLatest(true);
+    const animationFrame = requestAnimationFrame(jumpToLatest);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [followResetKey, horizontalScroll]);
+
+  useEffect(() => {
+    if (!horizontalScroll || !followingRef.current) return;
+    const animationFrame = requestAnimationFrame(() => {
+      const element = scrollHost.current;
+      if (!element || !followingRef.current) return;
+      element.scrollLeft = element.scrollWidth - element.clientWidth;
+    });
+    return () => cancelAnimationFrame(animationFrame);
+  }, [horizontalScroll, model.nextIndex, timelineWidth]);
+
   return (
     <figure className="signal-trace mt-5 border border-line bg-[#171917] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <figcaption className="micro">
-          {model.envelope
-            ? 'DECIMATED MIN-MAX ENVELOPE FROM PERSISTED FRAMES'
-            : 'DECIMATED PREVIEW FROM STORED OBSERVATIONS'}
+          {caption ??
+            (model.envelope
+              ? 'DECIMATED MIN-MAX ENVELOPE FROM PERSISTED FRAMES'
+              : 'DECIMATED PREVIEW FROM STORED OBSERVATIONS')}
         </figcaption>
-        <span className="font-mono text-[10px] text-muted">
-          {traceObservations(model).length}/{model.capacity} {model.envelope ? 'buckets' : 'points'}
-          {' | '}every {model.decimation} frame
-          {model.decimation === 1 ? '' : 's'}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          {horizontalScroll && !followingLatest && (
+            <button
+              type="button"
+              className="border border-[#78826e] px-3 py-2 font-mono text-[10px] text-white hover:bg-[#2e3429]"
+              aria-label="Jump to latest data"
+              onClick={jumpToLatest}
+            >
+              Jump to latest
+            </button>
+          )}
+          <span className="font-mono text-[10px] text-muted">
+            {traceObservations(model).length}/{model.capacity}{' '}
+            {model.envelope ? 'buckets' : 'points'}
+            {' | '}every {model.decimation} frame
+            {model.decimation === 1 ? '' : 's'}
+          </span>
+        </div>
       </div>
       <div
-        ref={host}
-        data-testid="playback-trace"
-        className="mt-4 min-h-[276px] w-full overflow-hidden"
-        role="img"
-        aria-label={label}
-      />
+        ref={scrollHost}
+        data-testid={`${testIdPrefix}-scroll`}
+        className={`mt-4 ${horizontalScroll ? 'overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent' : 'overflow-hidden'}`}
+        tabIndex={horizontalScroll ? 0 : undefined}
+        aria-label={horizontalScroll ? `Scrollable ${label}` : undefined}
+        onScroll={
+          horizontalScroll
+            ? (event) => {
+                const element = event.currentTarget;
+                const atLatest =
+                  element.scrollWidth - element.clientWidth - element.scrollLeft <= 4;
+                if (followingRef.current) followLatest(atLatest);
+                else if (manualScrollIntent.current && atLatest) followLatest(true);
+                manualScrollIntent.current = false;
+              }
+            : undefined
+        }
+        onWheel={horizontalScroll ? () => (manualScrollIntent.current = true) : undefined}
+        onPointerMove={
+          horizontalScroll
+            ? (event) => {
+                if (event.buttons !== 0) manualScrollIntent.current = true;
+              }
+            : undefined
+        }
+        onKeyDown={
+          horizontalScroll
+            ? (event) => {
+                if (event.key === 'ArrowRight') {
+                  const element = event.currentTarget;
+                  element.scrollLeft += 80;
+                  requestAnimationFrame(() => {
+                    if (element.scrollWidth - element.clientWidth - element.scrollLeft <= 4)
+                      followLatest(true);
+                  });
+                } else if (event.key === 'ArrowLeft') {
+                  followLatest(false);
+                  event.currentTarget.scrollLeft -= 80;
+                } else if (event.key === 'Home') {
+                  followLatest(false);
+                  event.currentTarget.scrollLeft = 0;
+                } else if (event.key === 'End') jumpToLatest();
+                else return;
+                event.preventDefault();
+              }
+            : undefined
+        }
+      >
+        <div
+          ref={host}
+          data-testid={`${testIdPrefix}-trace`}
+          className="min-h-[276px] overflow-hidden"
+          style={
+            timelineWidth === null ? { width: '100%' } : { width: timelineWidth, minWidth: '100%' }
+          }
+          role="img"
+          aria-label={label}
+        />
+      </div>
       <p
         ref={cursorReadout}
-        data-testid="playback-cursor-readout"
+        data-testid={`${testIdPrefix}-cursor-readout`}
         className="mt-3 min-h-4 font-mono text-[10px] text-muted"
       >
         Move across the trace to inspect a stored observation.
@@ -325,15 +486,15 @@ export function SignalTrace({ model, label }: { model: SignalTraceModel; label: 
                 : 'Not available'}
           </span>
         ))}
-        <span data-testid="playback-latest-frame">
+        <span data-testid={`${testIdPrefix}-latest-frame`}>
           Latest original frame: {latest ? integer(latest.index) : 'Not available'}
         </span>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] text-muted">
-        <span data-testid="playback-visible-window">
+        <span data-testid={`${testIdPrefix}-visible-window`}>
           Visible window: frames {integer(prepared.windowStart)}-{integer(prepared.windowEnd)}
         </span>
-        <span data-testid="playback-visible-gaps">
+        <span data-testid={`${testIdPrefix}-visible-gaps`}>
           Visible gaps in preview: {integer(prepared.gapCount)}
         </span>
       </div>

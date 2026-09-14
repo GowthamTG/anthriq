@@ -311,9 +311,15 @@ test('seek, selected channels, and speed preserve a precise next position', asyn
     },
     { status: 'paused', position: 12, segmentStartPosition: 12 },
   );
+  assert.ok(sought.preview.observations.length > 0);
+  assert.equal(sought.preview.observations.at(-1).index, 11);
   const changed = await playback.setChannels([2, 0]);
   assert.deepEqual(changed.channels, [2, 0]);
   assert.deepEqual(changed.preview.channels, [2, 0]);
+  const charted = await playback.setPreviewChannels([0]);
+  assert.deepEqual(charted.channels, [2, 0]);
+  assert.deepEqual(charted.preview.channels, [0]);
+  assert.ok(charted.preview.observations.every((frame) => frame.values.length === 1));
   const start = output.length;
   const done = terminal(playback);
   await playback.play();
@@ -377,6 +383,7 @@ test('invalid precise controls preserve state and seeking exactly to end is vali
   await assert.rejects(playback.seek(-1), /safe frame index/);
   await assert.rejects(playback.setSpeed(8.1), /0.1 to 8/);
   await assert.rejects(playback.setChannels([0, 0]), /unique/);
+  await assert.rejects(playback.setPreviewChannels([9]), /selected playback channels/);
   assert.deepEqual(playback.snapshot(), before);
 
   const ended = await playback.seek(before.expectedFrames);

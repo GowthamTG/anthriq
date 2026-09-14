@@ -56,7 +56,7 @@ test('the complete reviewer workflow is keyboard-operable and keeps verification
   await start.focus();
   await start.press('Enter');
   await expect(page.getByTestId('acquisition-state')).toHaveText('Recording');
-  await expect(page.getByRole('img', { name: 'Live acquired signal trace' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Live rolling signal detail' })).toBeVisible();
   await expect
     .poll(async () =>
       Number((await page.getByTestId('recorded-samples').innerText()).replaceAll(',', '')),

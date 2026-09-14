@@ -6,6 +6,7 @@ import type {
   RecorderCommand,
   RecorderMessage,
 } from './contracts.ts';
+import { TRACE_CHANNEL_LIMIT } from './contracts.ts';
 import { fork, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { resolve, join, basename } from 'node:path';
@@ -192,7 +193,7 @@ export class Acquisition {
     if (
       !Array.isArray(channels) ||
       !channels.length ||
-      channels.length > 4 ||
+      channels.length > TRACE_CHANNEL_LIMIT ||
       new Set(channels).size !== channels.length ||
       channels.some(
         (channel) =>

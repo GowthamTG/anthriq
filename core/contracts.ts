@@ -1,3 +1,5 @@
+export const TRACE_CHANNEL_LIMIT = 4;
+
 export interface Settings {
   channels: number;
   sampleRate: number;
@@ -184,7 +186,8 @@ export type PlaybackCommand =
   | { action: 'seek'; recordingId: string; position: number }
   | { action: 'seek'; recordingId: string; positionSeconds: number }
   | { action: 'speed'; recordingId: string; speed: number }
-  | { action: 'channels'; recordingId: string; channels: number[] };
+  | { action: 'channels'; recordingId: string; channels: number[] }
+  | { action: 'preview-channels'; recordingId: string; channels: number[] };
 export type PlaybackControlCommand = Exclude<
   PlaybackCommand,
   { action: 'open'; recordingId: string }
@@ -222,6 +225,13 @@ export interface RangePreview extends RangeSelection {
   warnings: string[];
   observations: Frame[];
   truncated: boolean;
+}
+export interface AllChannelOverview {
+  channels: number[];
+  sampleRate: number;
+  confirmedFrames: number;
+  capacity: number;
+  observations: Frame[];
 }
 export type RecorderStall = 'off' | 'scheduled' | 'active' | 'recovered';
 export interface AcquisitionMetrics {

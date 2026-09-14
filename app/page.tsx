@@ -2,7 +2,11 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
-import type { AcquisitionState, RecordingInspection } from '../core/contracts';
+import {
+  TRACE_CHANNEL_LIMIT,
+  type AcquisitionState,
+  type RecordingInspection,
+} from '../core/contracts';
 import { OverloadTelemetry } from './overload-telemetry';
 import { RecordingDetails } from './recording-details';
 import { config } from '../core/config';
@@ -11,6 +15,10 @@ import { requestJson } from './http';
 import { useServiceEvents } from './use-service-events';
 import { VerificationStatusText } from './verification-status';
 import { WorkbenchHeader } from './workbench-header';
+import { advanceLiveTrace, type LiveTraceHistory } from './live-trace-history';
+import { channelWindowLabel } from './channel-window';
+import { AllChannelTrace } from './all-channel-trace';
+import { useAllChannelOverview } from './use-all-channel-overview';
 const SignalTrace = dynamic(() => import('./signal-trace').then((module) => module.SignalTrace), {
   ssr: false,
 });
@@ -56,12 +64,14 @@ export default function Acquire() {
   const [draft, setDraft] = useState(() => draftFrom(config()));
   const [fields, setFields] = useState<Record<string, string>>({});
   const [clientId, setClientId] = useState<string | null>(null);
+  const [traceHistory, setTraceHistory] = useState<LiveTraceHistory | null>(null);
   const observedId = useRef<string | null | undefined>(undefined);
   const selectedChannels = useRef([0, 1, 2, 3]);
   const subscribedRecording = useRef<string | null>(null);
   useEffect(() => setClientId(crypto.randomUUID()), []);
   const applyState = (snapshot: AcquisitionState) => {
     setState(snapshot);
+    setTraceHistory((previous) => advanceLiveTrace(previous, snapshot));
     const channels = selectedChannels.current.filter(
       (channel) => channel < snapshot.settings.channels,
     );
@@ -72,7 +82,12 @@ export default function Acquire() {
     }
   };
   const connection = useServiceEvents({
-    url: clientId ? `/api/events?clientId=${encodeURIComponent(clientId)}` : null,
+    url: clientId ? '/api/events' : null,
+    reconnectQuery: () =>
+      new URLSearchParams({
+        clientId: clientId!,
+        channels: selectedChannels.current.join(','),
+      }),
     snapshot: clientId
       ? { url: '/api/state', apply: (value) => applyState(value as AcquisitionState) }
       : undefined,
@@ -133,6 +148,27 @@ export default function Acquire() {
           buckets: [],
         }
       : null);
+  const rollingPreview = traceHistory?.rolling ?? preview;
+  const overviewPreview = traceHistory?.overview ?? preview;
+  const confirmedPreviewFrames =
+    traceHistory?.confirmedFrames ??
+    metrics?.recordedFrames ??
+    rollingPreview?.buckets.at(-1)?.end ??
+    0;
+  const rollingPreviewFrames =
+    state?.preview === null
+      ? (rollingPreview?.buckets.at(-1)?.end ?? confirmedPreviewFrames)
+      : confirmedPreviewFrames;
+  const {
+    overview: allChannelOverview,
+    overviewError: allChannelOverviewError,
+    overviewStale: allChannelOverviewStale,
+  } = useAllChannelOverview({
+    recordingId: state?.id ?? null,
+    enabled: Boolean(state?.id),
+    prefix: status !== 'completed',
+    refresh: active,
+  });
 
   useEffect(() => {
     if (!state?.id || !['completed', 'failed'].includes(state.status)) {
@@ -172,6 +208,7 @@ export default function Acquire() {
     if (action === 'start') {
       setDetails(null);
       setRecordingSummary(null);
+      setTraceHistory(null);
     }
     try {
       const response = await fetch(
@@ -210,14 +247,11 @@ export default function Acquire() {
     }
   }
 
-  async function selectPreview(channel: number) {
+  async function updatePreviewChannels(channels: number[]) {
     if (!state?.id) return;
-    const current = selectedChannels.current;
-    const channels = current.includes(channel)
-      ? current.filter((value) => value !== channel)
-      : [...current, channel].sort((left, right) => left - right);
     if (!channels.length) return setError('Keep at least one live preview channel selected.');
-    if (channels.length > 4) return setError('Show at most four live preview channels at once.');
+    if (channels.length > TRACE_CHANNEL_LIMIT)
+      return setError(`Show at most ${TRACE_CHANNEL_LIMIT} live preview channels at once.`);
     try {
       const result = await requestJson<AcquisitionState>(`/api/acquisitions/${state.id}/preview`, {
         method: 'POST',
@@ -225,10 +259,29 @@ export default function Acquire() {
         body: JSON.stringify({ clientId, channels }),
       });
       selectedChannels.current = channels;
+      setTraceHistory(null);
       setState(result);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Preview selection failed');
     }
+  }
+
+  function selectPreview(channel: number) {
+    const current = selectedChannels.current;
+    const channels = current.includes(channel)
+      ? current.filter((value) => value !== channel)
+      : [...current, channel].sort((left, right) => left - right);
+    void updatePreviewChannels(channels);
+  }
+
+  function showLiveChartChannels(start: number) {
+    if (!state) return;
+    void updatePreviewChannels(
+      Array.from(
+        { length: Math.min(TRACE_CHANNEL_LIMIT, state.settings.channels - start) },
+        (_, index) => start + index,
+      ),
+    );
   }
 
   return (
@@ -294,29 +347,130 @@ export default function Acquire() {
                 {state ? (complete && lost ? 'Completed with loss' : names[status]) : 'Connecting'}
               </span>
             </div>
-            {preview && (
+            {rollingPreview && overviewPreview && (
               <div className="px-[30px] pt-6 max-[1050px]:px-[22px] max-[760px]:px-5">
                 <SignalTrace
-                  label="Live acquired signal trace"
+                  label="Live rolling signal detail"
+                  caption="LAST TWO SECONDS / DECIMATED PERSISTED-FRAME DETAIL"
+                  testIdPrefix="live-rolling"
                   model={{
-                    channels: preview.channels,
-                    envelope: preview,
+                    channels: rollingPreview.channels,
+                    envelope: rollingPreview,
                     sampleRate: state!.settings.sampleRate,
-                    decimation: preview.bucketFrames,
-                    capacity: preview.capacity,
-                    nextIndex: preview.buckets.at(-1)?.end || 0,
+                    decimation: rollingPreview.bucketFrames,
+                    capacity: rollingPreview.capacity,
+                    nextIndex: rollingPreviewFrames,
+                    rollingWindowFrames: state!.settings.sampleRate * 2,
+                    previewGaps: traceHistory?.previewGaps,
                   }}
                 />
-                <fieldset className="mt-4 flex flex-wrap gap-3" disabled={!active}>
-                  <legend className="micro">
-                    LIVE CHANNELS / DECIMATED MIN-MAX FROM PERSISTED FRAMES
+                <SignalTrace
+                  label="Whole acquisition signal overview"
+                  caption="WHOLE ACQUISITION VIEW HISTORY / SCROLLABLE + ADAPTIVELY DECIMATED"
+                  testIdPrefix="live-overview"
+                  horizontalScroll
+                  followResetKey={state!.id ?? undefined}
+                  model={{
+                    channels: overviewPreview.channels,
+                    envelope: overviewPreview,
+                    sampleRate: state!.settings.sampleRate,
+                    decimation: overviewPreview.bucketFrames,
+                    capacity: overviewPreview.capacity,
+                    nextIndex: confirmedPreviewFrames,
+                    expectedFrames: confirmedPreviewFrames,
+                    domainMode: 'extent',
+                    previewGaps: traceHistory?.previewGaps,
+                  }}
+                />
+                {allChannelOverview && (
+                  <AllChannelTrace
+                    overview={allChannelOverview}
+                    cursorFrame={confirmedPreviewFrames}
+                    label="All configured channel overview"
+                    testIdPrefix="live-all-channel"
+                  />
+                )}
+                {allChannelOverviewStale && (
+                  <p className="notice error mt-3" role="status">
+                    {allChannelOverviewError
+                      ? `The persisted all-channel overview may be stale: ${allChannelOverviewError}`
+                      : 'Refreshing the finalized persisted all-channel overview.'}
+                  </p>
+                )}
+                {!active && !allChannelOverview && allChannelOverviewError && (
+                  <p className="notice error mt-5" role="alert">
+                    All-channel overview unavailable: {allChannelOverviewError}
+                  </p>
+                )}
+                <p
+                  className="mt-3 text-xs leading-relaxed text-muted"
+                  data-testid="live-preview-gaps"
+                  data-preview-gap-count={traceHistory?.previewGaps.length ?? 0}
+                >
+                  {traceHistory?.previewGaps.length
+                    ? `Preview not observed across ${traceHistory.previewGaps.length.toLocaleString('en-US')} interval${traceHistory.previewGaps.length === 1 ? '' : 's'}. The recorder may still contain every sample.`
+                    : 'No browser preview gaps observed. The overview remains bounded and does not contain the full-rate sample stream.'}
+                </p>
+                <fieldset
+                  className="mt-8 flex flex-wrap gap-3 border border-line bg-[#171917] p-4"
+                  data-testid="live-chart-channel-panel"
+                  disabled={!active}
+                >
+                  <legend className="micro px-2">
+                    CHART CHANNELS / FOUR AT A TIME / ALL CHANNELS ARE RECORDED
                   </legend>
+                  <div className="flex w-full flex-wrap items-center gap-3">
+                    <button
+                      className="inspect-button"
+                      type="button"
+                      aria-label="Previous trace group"
+                      onClick={() =>
+                        showLiveChartChannels(
+                          Math.max(
+                            0,
+                            Math.floor((selectedChannels.current[0] ?? 0) / TRACE_CHANNEL_LIMIT) *
+                              TRACE_CHANNEL_LIMIT -
+                              TRACE_CHANNEL_LIMIT,
+                          ),
+                        )
+                      }
+                      disabled={(selectedChannels.current[0] ?? 0) < TRACE_CHANNEL_LIMIT}
+                    >
+                      Previous
+                    </button>
+                    <output
+                      className="font-mono text-xs text-muted"
+                      data-testid="live-chart-channels"
+                    >
+                      Chart: {channelWindowLabel(selectedChannels.current)}
+                    </output>
+                    <button
+                      className="inspect-button"
+                      type="button"
+                      aria-label="Next trace group"
+                      onClick={() =>
+                        showLiveChartChannels(
+                          Math.floor((selectedChannels.current[0] ?? 0) / TRACE_CHANNEL_LIMIT) *
+                            TRACE_CHANNEL_LIMIT +
+                            TRACE_CHANNEL_LIMIT,
+                        )
+                      }
+                      disabled={
+                        Math.floor((selectedChannels.current[0] ?? 0) / TRACE_CHANNEL_LIMIT) *
+                          TRACE_CHANNEL_LIMIT +
+                          TRACE_CHANNEL_LIMIT >=
+                        state!.settings.channels
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
                   {Array.from({ length: state!.settings.channels }, (_, channel) => (
                     <label key={channel} className="text-xs text-muted">
                       <input
                         type="checkbox"
                         checked={selectedChannels.current.includes(channel)}
-                        onChange={() => void selectPreview(channel)}
+                        onChange={() => selectPreview(channel)}
                       />{' '}
                       Ch {channel}
                     </label>
@@ -424,7 +578,13 @@ export default function Acquire() {
               onChange={changeSetting}
               onStart={() => command('start')}
             />
-            <div className="controls grid gap-[9px] max-[760px]:fixed max-[760px]:inset-x-0 max-[760px]:bottom-0 max-[760px]:z-10 max-[760px]:grid-cols-[1.2fr_1fr] max-[760px]:border-t max-[760px]:border-line max-[760px]:bg-background max-[760px]:px-5 max-[760px]:pt-3.5 max-[760px]:pb-[max(14px,env(safe-area-inset-bottom))] max-[760px]:[&_button]:min-h-[46px]">
+            <div
+              className={`controls grid gap-[9px] max-[760px]:fixed max-[760px]:z-10 max-[760px]:[&_button]:min-h-[46px] ${
+                active
+                  ? 'max-[760px]:right-5 max-[760px]:bottom-[max(14px,env(safe-area-inset-bottom))] max-[760px]:w-[180px] max-[760px]:grid-cols-1 max-[760px]:[&_.start-button]:hidden'
+                  : 'max-[760px]:inset-x-0 max-[760px]:bottom-0 max-[760px]:grid-cols-[1.2fr_1fr] max-[760px]:border-t max-[760px]:border-line max-[760px]:bg-background max-[760px]:px-5 max-[760px]:pt-3.5 max-[760px]:pb-[max(14px,env(safe-area-inset-bottom))]'
+              }`}
+            >
               <button
                 className="start-button"
                 type="submit"
@@ -534,7 +694,7 @@ export default function Acquire() {
           </section>
         )}
 
-        {details && <RecordingDetails details={details} />}
+        {details && <RecordingDetails details={details} showAllChannelOverview={false} />}
 
         <section
           className="method grid grid-cols-[1.1fr_1fr_1fr_1fr] items-start gap-[30px] border-b border-line pt-[34px] pb-8 max-[1050px]:gap-4 max-[760px]:grid-cols-2 max-[760px]:gap-x-4 max-[760px]:gap-y-[25px] max-[760px]:py-7"

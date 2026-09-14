@@ -16,6 +16,13 @@ each frame contains 32 samples and 4,000 frames are produced each second. _Avoid
 **Sample index**: The zero-based position of a frame on the signal's original acquisition timeline,
 independent of whether its samples were successfully recorded.
 
+**Preview gap**: An interval on the acquisition timeline for which a browser did not retain live
+preview observations. It says nothing about whether the corresponding samples exist in a recording.
+_Avoid_: Missing samples
+
+**Persisted overview**: A bounded, uniformly sampled view of readable recorded frames across all
+channels. It is distinct from browser-local live preview history. _Avoid_: Full-rate preview
+
 **Acquisition**: A run in which a signal is generated at its configured real-world rate and
 recorded.
 

@@ -1,5 +1,7 @@
 import type { FileHandle } from 'node:fs/promises';
 import type {
+  Frame,
+  AllChannelOverview,
   FileIdentity,
   RangePreview,
   RangeQuery,
@@ -16,6 +18,8 @@ import { stride } from './signal.ts';
 import { readMetadata } from './metadata.ts';
 
 export const RANGE_READ_CHUNK_BYTES = 64 * 1024;
+export const ALL_CHANNEL_OVERVIEW_VALUE_LIMIT = 2048;
+export const ALL_CHANNEL_OVERVIEW_FRAME_LIMIT = 64;
 
 export const createRangeReadMetrics = (): RangeReadMetrics => ({
   extentProbeReads: 0,
@@ -429,6 +433,76 @@ export async function previewFrames(
     observations.push(frame);
   }
   return { ...chosen, warnings: inspection.warnings, observations, truncated: false };
+}
+
+export async function samplePreviewFrames(
+  directory: string,
+  options: RangeQuery = {},
+  limit = 200,
+): Promise<Frame[]> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
+    throw new Error('Preview frame limit must be a safe integer from 1 to 1000');
+  const { inspection: metadata, selection: chosen } = await rangeSelection(directory, options);
+  const file = await open(join(directory, 'frames.bin'), 'r');
+  try {
+    const first = await lowerBound(
+      file,
+      metadata.completeRecords,
+      metadata.recordBytes,
+      chosen.start,
+    );
+    const last = await lowerBound(file, metadata.completeRecords, metadata.recordBytes, chosen.end);
+    const count = last - first;
+    if (!count) return [];
+    const ordinals =
+      count <= limit
+        ? Array.from({ length: count }, (_, index) => first + index)
+        : limit === 1
+          ? [last - 1]
+          : Array.from(
+              { length: limit },
+              (_, index) => first + Math.floor((index * (count - 1)) / (limit - 1)),
+            );
+    const record = Buffer.allocUnsafe(metadata.recordBytes);
+    const observations: Frame[] = [];
+    for (const ordinal of ordinals) {
+      await readExact(file, record, ordinal * metadata.recordBytes, metadata.recordBytes);
+      const index = record.readBigUInt64LE();
+      if (index > BigInt(Number.MAX_SAFE_INTEGER))
+        throw Object.assign(new Error('Stored frame index exceeds the supported safe range'), {
+          statusCode: 422,
+        });
+      observations.push({
+        index: Number(index),
+        values: chosen.channels.map((channel) => record.readFloatLE(8 + channel * 4)),
+      });
+    }
+    return observations;
+  } finally {
+    await file.close();
+  }
+}
+
+export async function allChannelOverview(
+  directory: string,
+  prefix = false,
+): Promise<AllChannelOverview> {
+  const { inspection, selection: chosen } = await rangeSelection(directory, { prefix });
+  const capacity = Math.min(
+    ALL_CHANNEL_OVERVIEW_FRAME_LIMIT,
+    Math.max(1, Math.floor(ALL_CHANNEL_OVERVIEW_VALUE_LIMIT / chosen.channels.length)),
+  );
+  return {
+    channels: chosen.channels,
+    sampleRate: inspection.sampleRate,
+    confirmedFrames: chosen.end,
+    capacity,
+    observations: await samplePreviewFrames(
+      directory,
+      { channels: chosen.channels, start: 0, end: chosen.end, prefix },
+      capacity,
+    ),
+  };
 }
 
 // Full physical scan for verification, deliberately bypassing the sorted index

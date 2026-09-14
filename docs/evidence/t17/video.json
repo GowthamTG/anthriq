@@ -1,5 +1,82 @@
 {
   "schemaVersion": "SCOPE-T17-VIDEO/1",
-  "status": "pending-owner-recording",
-  "note": "Replaced with reviewed media identity and timestamps after owner-narrated capture."
+  "status": "reviewed",
+  "recordedAt": "2026-09-14T18:19:47Z",
+  "recordedCommit": "929393d3a7e21012a92e59c3b6af2918a9d8076c",
+  "runtimeTreeSha256": "46306152363ac1d9a2c66e4236ccf45ff65b4ca5dc96fc2b281986851f0ffd03",
+  "filename": "Demo.mov",
+  "durationSeconds": 835.7253333333333,
+  "width": 2902,
+  "height": 1732,
+  "videoCodec": "H.264",
+  "audioCodec": "AAC",
+  "audioPresent": true,
+  "byteSize": 348995903,
+  "asset": {
+    "url": "https://github.com/GowthamTG/anthriq/releases/download/t17-submission/Demo.mov",
+    "sha256": "950bd92fa641055de235810ebe3c6c26a1dbabb9e9c1742ae47a1e1cb4785aff"
+  },
+  "release": {
+    "tag": "t17-submission",
+    "url": "https://github.com/GowthamTG/anthriq/releases/tag/t17-submission",
+    "visibility": "public"
+  },
+  "shots": [
+    {
+      "id": "configuration",
+      "timestamp": "~0:00 (estimated, not frame-verified)",
+      "description": "Acquire view: channels, sample rate, seed, duration, buffer budget",
+      "reviewed": true
+    },
+    {
+      "id": "live-capture",
+      "timestamp": "~1:16 (estimated, not frame-verified)",
+      "description": "Live acquisition running: status, frame counts, two-second chart, whole-acquisition chart with Jump to latest, all-channel overview",
+      "reviewed": true
+    },
+    {
+      "id": "recording-inspection-retrieval-csv",
+      "timestamp": "~3:48 (estimated, not frame-verified)",
+      "description": "Recording details, exact range inspection (channels 31,2,17,0), CSV download",
+      "reviewed": true
+    },
+    {
+      "id": "playback",
+      "timestamp": "~5:58 (estimated, not frame-verified)",
+      "description": "Playback controls: play, pause, scrub, speed change, channel change, seek to end",
+      "reviewed": true
+    },
+    {
+      "id": "verification-clean-pass",
+      "timestamp": "~8:19 (estimated, not frame-verified)",
+      "description": "Verify view: clean acquisition verifies with zero discrepancies",
+      "reviewed": true
+    },
+    {
+      "id": "verification-combined-scenario",
+      "timestamp": "~9:35 (estimated, not frame-verified)",
+      "description": "Combined diagnostic scenario shows missing, duplicate, and incorrect discrepancy classes",
+      "reviewed": true
+    },
+    {
+      "id": "cli-verification",
+      "timestamp": "~10:40 (estimated, not frame-verified)",
+      "description": "Browser-free CLI verification showing PASS and exit code 0",
+      "reviewed": true
+    },
+    {
+      "id": "sustained-evidence-limitations",
+      "timestamp": "~11:57 (estimated, not frame-verified)",
+      "description": "README measured results, T15/T16 sustained evidence, and known limitations",
+      "reviewed": true
+    }
+  ],
+  "review": {
+    "readable": true,
+    "truthful": true,
+    "audioClear": true,
+    "noCredentials": true,
+    "localPlaybackVerified": true,
+    "reviewedByOwner": true
+  }
 }

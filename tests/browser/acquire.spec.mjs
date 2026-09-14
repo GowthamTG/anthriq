@@ -2,11 +2,13 @@ import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('capture, reload, stop, and inspect a real recording', async ({ page, request }) => {
   await page.goto('/');
+  expect((await request.get('/api/diagnostics/observers')).status()).toBe(404);
   expect((await request.get('/api/state?clientId=missing-session')).status()).toBe(404);
   expect((await request.get('/api/events?clientId=invalid-session&channels=0,0')).status()).toBe(
     400,
@@ -100,6 +102,67 @@ test('independent observing tabs keep bounded session previews while acquisition
     await expect(page.getByTestId('acquisition-state')).toHaveText('Completed');
   } finally {
     await context.close().catch(() => {});
+  }
+});
+
+test('evidence mode exposes bounded observer diagnostics and cleans up a disconnected reader', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'scope-observer-diagnostics-'));
+  const server = spawn(process.execPath, ['server.ts'], {
+    env: {
+      ...process.env,
+      PORT: '3108',
+      SCOPE_RECORDINGS_DIR: root,
+      SCOPE_EVIDENCE_MODE: '1',
+    },
+    stdio: 'ignore',
+  });
+  const closed = once(server, 'close');
+  let request;
+  try {
+    await expect
+      .poll(async () => {
+        try {
+          return (await fetch('http://127.0.0.1:3108/api/diagnostics/observers')).status;
+        } catch {
+          return 0;
+        }
+      })
+      .toBe(200);
+    request = http.get(
+      'http://127.0.0.1:3108/api/events?clientId=stalled-test&channels=0,1,2,3',
+      (response) => response.pause(),
+    );
+    await fetch('http://127.0.0.1:3108/api/acquisitions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds: 1 }),
+    });
+    await expect
+      .poll(async () => (await fetch('http://127.0.0.1:3108/api/diagnostics/observers')).json(), {
+        timeout: 3000,
+      })
+      .toMatchObject({ activeClients: 1 });
+    const diagnostics = await (
+      await fetch('http://127.0.0.1:3108/api/diagnostics/observers')
+    ).json();
+    expect(diagnostics.limits).toMatchObject({
+      clients: 8,
+      clientBufferBytes: 65536,
+      drainMs: 2000,
+    });
+    expect(diagnostics.maxWritableLengthBytes).toBeLessThanOrEqual(65536);
+    request.destroy();
+    request = undefined;
+    await expect
+      .poll(async () => (await fetch('http://127.0.0.1:3108/api/diagnostics/observers')).json(), {
+        timeout: 2500,
+      })
+      .toMatchObject({ activeClients: 0 });
+  } finally {
+    request?.destroy();
+    server.kill('SIGTERM');
+    await closed;
+    await rm(root, { recursive: true, force: true });
   }
 });
 

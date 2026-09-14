@@ -36,14 +36,25 @@ const handle = app.getRequestHandler();
 const MAX_EVENT_CLIENTS = 8;
 const MAX_EVENT_BYTES = 48 * 1024;
 const MAX_DRAIN_MS = 2000;
+const evidenceMode = process.env.SCOPE_EVIDENCE_MODE === '1';
 type EventClient = {
   res: ServerResponse;
   revision: number;
   clientId?: string;
   draining: boolean;
   drainingSince: number;
+  closeReason?: string;
 };
 const clients = new Set<EventClient>();
+const observerDiagnostics = {
+  opened: 0,
+  closed: 0,
+  replacements: 0,
+  backpressureDisconnects: 0,
+  oversizedEventDisconnects: 0,
+  maxClients: 0,
+  maxWritableLengthBytes: 0,
+};
 let revision = 0,
   closing = false;
 acquisition.subscribe(() => {
@@ -141,14 +152,31 @@ function eventBody(client: EventClient) {
 
 function event(client: EventClient) {
   if (client.res.destroyed) return;
+  observerDiagnostics.maxWritableLengthBytes = Math.max(
+    observerDiagnostics.maxWritableLengthBytes,
+    client.res.writableLength,
+  );
   if (client.draining) return;
   const body = eventBody(client);
-  if (!eventFitsClientBuffer(client.res.writableLength, Buffer.byteLength(body))) {
+  const bodyBytes = Buffer.byteLength(body);
+  if (bodyBytes > MAX_CLIENT_BUFFER_BYTES) {
+    client.closeReason = 'oversized-event';
+    observerDiagnostics.oversizedEventDisconnects++;
+    client.res.destroy();
+    return;
+  }
+  if (!eventFitsClientBuffer(client.res.writableLength, bodyBytes)) {
+    client.closeReason = 'backpressure';
+    observerDiagnostics.backpressureDisconnects++;
     client.res.destroy();
     return;
   }
   client.revision = revision;
   if (!client.res.write(body)) {
+    observerDiagnostics.maxWritableLengthBytes = Math.max(
+      observerDiagnostics.maxWritableLengthBytes,
+      client.res.writableLength,
+    );
     client.draining = true;
     client.drainingSince = Date.now();
     client.res.once('drain', () => {
@@ -160,6 +188,8 @@ function event(client: EventClient) {
 
 function evictExpiredDrain(client: EventClient) {
   if (client.draining && Date.now() - client.drainingSince > MAX_DRAIN_MS) {
+    client.closeReason = 'backpressure';
+    observerDiagnostics.backpressureDisconnects++;
     client.res.destroy();
     return true;
   }
@@ -232,6 +262,25 @@ const server = createServer(async (req, res) => {
       return json(res, 200, verification.snapshot());
     if (req.method === 'GET' && url.pathname === '/api/playback')
       return json(res, 200, playback.snapshot());
+    if (req.method === 'GET' && url.pathname === '/api/diagnostics/observers' && evidenceMode)
+      return json(res, 200, {
+        ...observerDiagnostics,
+        activeClients: clients.size,
+        limits: {
+          clients: MAX_EVENT_CLIENTS,
+          eventBytes: MAX_EVENT_BYTES,
+          clientBufferBytes: MAX_CLIENT_BUFFER_BYTES,
+          drainMs: MAX_DRAIN_MS,
+        },
+        serverRssBytes: process.memoryUsage().rss,
+        revision,
+        clients: [...clients].map((client) => ({
+          clientId: client.clientId ?? null,
+          draining: client.draining,
+          drainingForMs: client.draining ? Date.now() - client.drainingSince : 0,
+          writableLengthBytes: client.res.writableLength,
+        })),
+      });
     if (req.method === 'GET' && url.pathname === '/api/events') {
       const { clientId, channels } = eventQuery(url);
       const replacing = [...clients].some((client) => clientId && client.clientId === clientId);
@@ -242,7 +291,11 @@ const server = createServer(async (req, res) => {
         Array.from({ length: Math.min(4, acquisition.snapshot().settings.channels) }, (_, i) => i);
       if (clientId) acquisition.validatePreviewChannels(selected);
       for (const existing of clients)
-        if (clientId && existing.clientId === clientId) existing.res.destroy();
+        if (clientId && existing.clientId === clientId) {
+          existing.closeReason = 'replaced';
+          observerDiagnostics.replacements++;
+          existing.res.destroy();
+        }
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
@@ -258,9 +311,12 @@ const server = createServer(async (req, res) => {
         drainingSince: 0,
       };
       clients.add(client);
+      observerDiagnostics.opened++;
+      observerDiagnostics.maxClients = Math.max(observerDiagnostics.maxClients, clients.size);
       if (clientId) acquisition.subscribePreview(clientId, selected);
       res.on('close', () => {
         clients.delete(client);
+        observerDiagnostics.closed++;
         if (clientId && ![...clients].some((other) => other.clientId === clientId))
           acquisition.unsubscribePreview(clientId);
       });

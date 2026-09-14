@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GowthamTG/anthriq/docs/evidence/issue-36/summary.schema.json",
+  "title": "SCOPE browser-isolation evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "createdAt",
+    "environment",
+    "configuration",
+    "recordingRoot",
+    "engineeringTolerances",
+    "cases",
+    "result"
+  ],
+  "properties": {
+    "format": { "const": "SCOPE-BROWSER-ISOLATION-EVIDENCE/1" },
+    "createdAt": { "type": "string" },
+    "environment": { "type": "object" },
+    "configuration": { "type": "object" },
+    "recordingRoot": { "type": "string" },
+    "engineeringTolerances": { "type": "object" },
+    "result": { "const": "PASS" },
+    "cases": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "recordingId",
+          "elapsedMs",
+          "expectedFrames",
+          "scheduledFrames",
+          "emittedFrames",
+          "persistedFrames",
+          "lostFrames",
+          "sourceTiming",
+          "sourceMaxLagMs",
+          "peakOutstandingBytes",
+          "peakQueueBytes",
+          "generatorPeakRssBytes",
+          "recorderPeakRssBytes",
+          "serverPeakRssBytes",
+          "browserPeakHeapBytes",
+          "peakActiveClients",
+          "peakWritableLengthBytes",
+          "observerCleanupMs",
+          "reconnectCheck",
+          "commandAccounting",
+          "diagnosticsDelta"
+        ]
+      }
+    }
+  }
+}

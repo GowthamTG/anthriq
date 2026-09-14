@@ -11,23 +11,34 @@ stories, operation contracts, storage format, 30 acceptance scenarios, and deliv
 published as [implementation issue #1](https://github.com/GowthamTG/anthriq/issues/1), labeled
 `ready-for-agent`.
 
-The approved [implementation ticket index](docs/ticket-plan.md) links all 18 published tickets and
-their dependencies: 17 local-delivery tickets plus one optional hosting follow-up. T01
-([issue #2](https://github.com/GowthamTG/anthriq/issues/2)) through T09 are merged. T10 adds
-native-rate playback.
+The approved [implementation ticket index](docs/ticket-plan.md) links 17 local-delivery tickets plus
+one optional hosting follow-up. **T01-T17 are complete:** the repository contains the full local
+assessment implementation, automated checks, one-hour acquisition evidence, long-recording
+retrieval/export/playback evidence, a clean-clone rehearsal, and the final demonstration. Optional
+public hosting remains separate T18 work and does not gate this handoff.
 
-**T01–T10 are implemented:** local launch, configurable continuous/timed acquisition, real
-telemetry, graceful Stop, a paginated recordings library, validated metadata/prefix inspection,
-bounded failure cleanup, overload/recovery diagnostics, independent streaming verification,
-disposable integrity scenarios, exact range/channel inspection, streamed CSV export, and CLI/browser
-checks. Finalized recordings can be replayed at their native frame rate with measured lag and a
-bounded trace. The remaining assessment tickets are still open; this is not the complete assessment
-submission.
+Start with the
+[narrated T17 demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/scope-t17-demo.m4v),
+then use the [complete assessment traceability](docs/evidence/t17/traceability.json) to map every
+mandatory requirement and A01-A30 to implementation, tests, and compact evidence. This repository is
+private; the owner must grant the named reviewer access before either link resolves.
+
+## Five-minute reviewer path
+
+1. Install Node.js 24, clone the repository, and run the three setup commands below.
+2. Capture a short default recording, then open **Recordings** to inspect, retrieve, export, and
+   play it.
+3. Open **Verify** for a clean physical scan and a disposable Combined integrity scenario.
+4. Run `npm run cli -- verify <recording-directory>` to confirm the same machine-checkable result
+   without a browser.
+5. Validate the committed sustained and final-handoff evidence with
+   `npm run evidence:validate-acquisition`, `npm run evidence:validate-long-recording`, and
+   `npm run evidence:validate-handoff`.
 
 ## Stack and decision review
 
-Next.js/React with strict TypeScript and Tailwind CSS. The local Node server, acquisition owner,
-generator, recorder, storage reader, playback engine/owner, diagnostic generator, verifier,
+Next.js 16/React 19 with strict TypeScript and Tailwind CSS. The local Node server, acquisition
+owner, generator, recorder, storage reader, playback engine/owner, diagnostic generator, verifier,
 verification worker/owner, and CLI are TypeScript too. Node.js 24 runs their erasable types
 directly; no runtime transpiler or backend build is needed. Production builds use Next's supported
 Webpack option; Turbopack's PostCSS worker-port binding was blocked in the local build environment.
@@ -36,6 +47,11 @@ Shared contracts live in `core/contracts.ts`.
 The [decision audit](docs/decision-audit.md) reviews earlier choices and records corrections.
 [ADR 0003](docs/adr/0003-typescript-and-tailwind.md) amends the initial JavaScript/native-CSS choice
 while preserving the parent specification.
+
+Development and final sustained measurements used Node.js 24.21.0 and npm 11.19.0 on macOS 26
+(Darwin 25.6.0), arm64 Apple M5 Pro with 15 logical CPUs and 24 GiB memory. GitHub CI separately
+runs the functional suite on Ubuntu with Node.js 24. Those facts do not claim equal sustained
+performance on an unmeasured platform.
 
 ## Run locally
 
@@ -276,6 +292,16 @@ starts a separate generator process. The generator uses a monotonic clock and by
 recorder returns credits only after complete writes. Browser state arrives through a coalesced event
 stream, independently of recorder acknowledgements.
 
+```text
+React workbench / CLI
+        | commands and bounded observations
+local Node service / acquisition owner
+        | starts and supervises
+recorder process <--- byte-credit-bounded frame batches --- generator process
+        | complete short-write-safe disk writes                 | monotonic source clock
+recording bundle ---> indexed reader/export/playback ---> streaming verifier process
+```
+
 Each recording directory contains:
 
 - `frames.bin`: repeated records of an eight-byte little-endian unsigned original frame index
@@ -288,9 +314,19 @@ Each recording directory contains:
 
 At defaults, two seconds contains 8,000 frames, 256,000 values, and 1,088,000 frame-data bytes.
 Frame indices retain the original timeline; final expected extent is supplied by the generator
-rather than inferred from saved record count. The [waveform and binary reference](docs/waveform.md)
-supplies the exact formula, rounding rules, and independently calculated values. Unknown waveform
-identifiers are rejected. The [specification](SPEC.md) defines the complete planned contracts.
+rather than inferred from saved record count. At physical ordinal `k`, the index is at `k × W` and
+channel `c` begins at `k × W + 8 + 4c`, where `W = 8 + 4C`. This is sufficient to implement an
+independent reader with the metadata contract in
+[the complete format reference](docs/recording-format.md).
+
+The waveform identifier is `triangle-modulated-v1`. For zero-based frame `n`, channel `c`, rate `r`,
+and seed `s`: `P=max(8,round(r/(2+0.37c)))`; `Q=max(4,round(P/7))`;
+`A=((n mod P)+((97c+s) mod P)) mod P`; `B=((n mod Q)+(s mod Q)) mod Q`;
+`triangle(p,L)=1-4×abs(p/L-0.5)`; and the stored value is the single final float32 rounding of
+`0.8×triangle(A,P)+0.12×triangle(B,Q)`. Use binary64 intermediates in that order, nonnegative
+remainders, positive half-up period rounding, and float32 round-to-nearest/ties-to-even. The
+[waveform reference](docs/waveform.md) includes independent bytes and exact examples. Unknown
+waveform identifiers are rejected.
 
 Start reserves ownership immediately; a concurrent start returns conflict. Stop is idempotent,
 including during startup. Errors are shown rather than reported as completion. Accepted data is
@@ -326,9 +362,15 @@ Chromium smoke tests on Ubuntu with Node.js 24. [T01 evidence](docs/evidence/t01
 [T06 verification evidence](docs/evidence/t06/README.md),
 [T07 diagnostic evidence](docs/evidence/t07/README.md),
 [T08 range evidence](docs/evidence/t08/README.md),
-[T09 export evidence](docs/evidence/t09/README.md), and
-[T10 playback evidence](docs/evidence/t10/README.md) distinguish completed local checks from the
-later sustained-performance work.
+[T09 export evidence](docs/evidence/t09/README.md),
+[T10 playback evidence](docs/evidence/t10/README.md),
+[T11 controls evidence](docs/evidence/t11/README.md),
+[T12 live-trace evidence](docs/evidence/t12/README.md),
+[T13 browser-isolation evidence](docs/evidence/t13/README.md),
+[T14 workflow evidence](docs/evidence/t14/README.md),
+[T15 sustained-acquisition evidence](docs/evidence/t15/README.md),
+[T16 long-recording evidence](docs/evidence/t16/README.md), and the
+[T17 final handoff](docs/evidence/t17/README.md) distinguish measured checks from design claims.
 
 `next-env.d.ts` remains tracked and included by `tsconfig.json` because Next.js generates the route
 and root-parameter type references consumed by type checking. Next.js also owns that file's exact
@@ -336,29 +378,79 @@ syntax, so Prettier deliberately ignores it. CI runs formatting both before and 
 build, then `npm run check:clean`; the latter prints status and diffs and fails if a build or check
 changes any tracked file or creates an unignored file.
 
-## Phase boundary
+## Measured results and method
 
-The implemented phases include configurable acquisition, inspection, range retrieval, CSV export,
-native-rate playback, overload recovery, independent verification, and disposable corruption
-demonstrations. Pause/seek/speed/channel playback controls, live acquisition traces, extended stress
-experiments, the one-hour benchmark, final video, and hosting remain in subsequent tickets. No
-waveform or integrity result is fabricated in the interface.
+The quiet one-hour T15 run used the default 32 channels, 4,000 frames/s, and seed 42. The source
+scheduled and emitted 14,400,000 frames; the recorder persisted all 14,400,000 frames, or
+460,800,000 scalar samples and 1,958,400,000 frame bytes, with zero loss. Source monotonic elapsed
+time was 3,600.003 seconds. Complete streaming verification took 4,712 ms, peaked at 104,316,928 RSS
+bytes, and reported PASS with zero missing, duplicated, incorrect, or format errors. Equal
+five-minute early/middle/late windows showed no sustained generator or recorder RSS growth; the
+exact series, storage context, methods, and overload comparison are in
+[T15 evidence](docs/evidence/t15/README.md).
 
-## Agreed direction
+T16 reused the identical retained file. One-second beginning/middle/end retrieval medians were 4.09,
+3.66, and 4.35 ms; one-frame seek medians were 0.75, 0.85, and 0.70 ms. The full four-channel CSV
+export streamed 14.4 million rows in 62.33 seconds while incremental identity/value/hash checks ran
+and late mean RSS was about 2.0 MB below early mean RSS. Achieved playback multiples were 0.249995x,
+0.499976x, 0.999944x, 1.999607x, and 3.992989x. A deliberately slow sink accumulated 5,199.5 ms
+maximum lag without dropped or duplicated output. A fresh full verification took 4,123 ms and
+102,170,624 peak RSS bytes. Retrieval/export/verification timings are observations. Only playback
+uses an explicit +/-10% project engineering tolerance; the assessment supplies no numeric pacing
+threshold.
 
-- Separate Node.js generator and recorder processes with clock-paced generation and a bounded byte
-  budget.
-- Original frame indices, float32 channel values, JSON metadata, and explicit overload-loss
-  accounting.
-- Streaming retrieval and verification, with measured native playback now and precise controls in
-  T11.
-- A graphite instrument interface with a bounded playback trace and real recording metrics; live
-  acquisition waveforms are scheduled for T12.
-- One-command local execution and a short demonstration video as the primary delivery; public
-  hosting is last priority.
+Representative completed verification output:
 
-See the [domain glossary](CONTEXT.md), [architecture decisions](docs/adr/), and
-[acceptance scenarios](docs/acceptance-scenarios.md).
+```text
+Expected:   460,800,000 samples
+Recorded:   460,800,000 samples
+Missing:              0
+Duplicated:           0
+Incorrect:            0
+Format errors:        0
+Result:            PASS
+```
+
+## Decisions, trade-offs, and limitations
+
+- Fixed-width indexed float32 frames favor deterministic append, prefix recovery, and binary seek.
+  Float64 doubles value bytes; JSON/CSV primary storage adds parsing and size; a database adds setup
+  without replacing the local recording. Frame-major layout causes measured channel-subset read
+  amplification; a channel-blocked successor would trade simpler writes for cheaper subset reads.
+- Byte-credit overload preserves the source clock and bounded memory by dropping newly due frames
+  with exact intervals when the recorder cannot keep up. Blocking the source would falsify timing;
+  unbounded queuing would falsify the memory claim.
+- Clean stop drains and syncs accepted data, but this is not power-loss transactional durability.
+  The system detects partial/corrupt files instead of claiming automatic repair.
+- Playback is forward-only at 0.1x-8x. The assessment wording is interpreted as slower and faster
+  positive multiples, not reverse chronology.
+- One local owner, one acquisition, and one playback session are deliberate assessment boundaries.
+  Authentication, distributed acquisition, public hosting, and remote durable storage require a
+  separate product requirement.
+- Hard real-time scheduling, physical-unit calibration, and sustained equivalence on unmeasured
+  platforms are not claimed.
+
+See the [decision audit](docs/decision-audit.md), [ADRs](docs/adr/), complete
+[known-limitations statement](docs/evidence/t17/known-limitations.md), and final
+[acceptance matrix](docs/acceptance-scenarios.md). With additional time, the highest-value work is
+checksummed recovery segments, multi-platform sustained measurements, and a versioned analytical
+storage layout. Optional public hosting remains T18.
+
+## Demonstration and submission
+
+The
+[5-7 minute owner-narrated demonstration](https://github.com/GowthamTG/anthriq/releases/download/t17-submission/scope-t17-demo.m4v)
+shows real configuration, capture/metrics, finalization, retrieval/export, playback controls, clean
+verification, and isolated corruption detection. The
+[walkthrough and locked narration](docs/evidence/t17/demo-script.md),
+[artifact manifest](docs/evidence/t17/video.json),
+[submission checklist](docs/evidence/t17/submission-checklist.md), and
+[complete traceability](docs/evidence/t17/traceability.json) make every claim reviewable.
+
+The primary deliverable is this private GitHub repository. An identified reviewer needs repository
+access to clone it or download its private release; the owner must grant that access explicitly. No
+credential, recording binary, or assessment PDF is committed. Public hosting is optional and does
+not replace the local Node.js process-and-disk workflow.
 
 ## Engineering skills
 

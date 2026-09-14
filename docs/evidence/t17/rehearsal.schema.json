@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "result",
+    "beganAt",
+    "completedAt",
+    "workload",
+    "source",
+    "environment",
+    "steps",
+    "server",
+    "cli"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "SCOPE-T17-HANDOFF/1" },
+    "result": { "const": "PASS" },
+    "beganAt": { "type": "string" },
+    "completedAt": { "type": "string" },
+    "workload": { "enum": ["quiet", "development", "ui"] },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "requestedRef", "commit", "runtimeTree"],
+      "properties": {
+        "repository": { "type": "string" },
+        "requestedRef": { "type": "string" },
+        "commit": { "type": "string" },
+        "runtimeTree": { "$ref": "#/$defs/runtimeTree" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "release", "arch", "node", "npm"],
+      "properties": {
+        "platform": { "type": "string" },
+        "release": { "type": "string" },
+        "arch": { "type": "string" },
+        "node": { "type": "string" },
+        "npm": { "type": "string" }
+      }
+    },
+    "steps": { "type": "array", "minItems": 11, "items": { "$ref": "#/$defs/command" } },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elapsedMs",
+        "stateStatus",
+        "pageStatus",
+        "acquisitionStatus",
+        "port",
+        "exitCode",
+        "signal",
+        "shutdownMs",
+        "totalElapsedMs",
+        "stdoutBytes",
+        "stderrBytes",
+        "stdoutSha256",
+        "stderrSha256"
+      ],
+      "properties": {
+        "elapsedMs": { "type": "number", "minimum": 0 },
+        "stateStatus": { "const": 200 },
+        "pageStatus": { "const": 200 },
+        "acquisitionStatus": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1 },
+        "exitCode": { "const": 0 },
+        "signal": { "type": ["string", "null"] },
+        "shutdownMs": { "type": "number", "minimum": 0 },
+        "totalElapsedMs": { "type": "number", "minimum": 0 },
+        "stdoutBytes": { "type": "integer", "minimum": 0 },
+        "stderrBytes": { "type": "integer", "minimum": 0 },
+        "stdoutSha256": { "type": "string" },
+        "stderrSha256": { "type": "string" }
+      }
+    },
+    "cli": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recording", "retrieval", "playback", "verification", "commands"],
+      "properties": {
+        "recording": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "channels",
+            "sampleRate",
+            "seed",
+            "expectedFrames",
+            "recordedFrames",
+            "totalSamples",
+            "frameBytes",
+            "droppedFrames",
+            "trailingBytes",
+            "processSeparation"
+          ],
+          "properties": {
+            "status": { "const": "completed" },
+            "channels": { "const": 32 },
+            "sampleRate": { "const": 4000 },
+            "seed": { "const": 42 },
+            "expectedFrames": { "const": 8000 },
+            "recordedFrames": { "const": 8000 },
+            "totalSamples": { "const": 256000 },
+            "frameBytes": { "const": 1088000 },
+            "droppedFrames": { "const": 0 },
+            "trailingBytes": { "const": 0 },
+            "processSeparation": { "const": true }
+          }
+        },
+        "retrieval": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "object" }
+        },
+        "playback": { "type": "object" },
+        "verification": {
+          "type": "object",
+          "required": [
+            "result",
+            "recordsScanned",
+            "formatErrors",
+            "missingSamples",
+            "duplicatedSamples",
+            "incorrectSamples",
+            "elapsedMs",
+            "peakRssBytes"
+          ],
+          "properties": {
+            "result": { "const": "PASS" },
+            "recordsScanned": { "const": 8000 },
+            "formatErrors": { "const": 0 },
+            "missingSamples": { "const": 0 },
+            "duplicatedSamples": { "const": 0 },
+            "incorrectSamples": { "const": 0 },
+            "elapsedMs": { "type": "number", "minimum": 0 },
+            "peakRssBytes": { "type": "number", "minimum": 0 }
+          }
+        },
+        "commands": { "type": "array", "minItems": 4, "items": { "$ref": "#/$defs/command" } }
+      }
+    }
+  },
+  "$defs": {
+    "runtimeTree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "files"],
+      "properties": {
+        "sha256": { "type": "string" },
+        "files": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "exitCode",
+        "signal",
+        "elapsedMs",
+        "stdoutBytes",
+        "stderrBytes",
+        "stdoutSha256",
+        "stderrSha256"
+      ],
+      "properties": {
+        "command": { "type": "string" },
+        "exitCode": { "const": 0 },
+        "signal": { "type": ["string", "null"] },
+        "elapsedMs": { "type": "number", "minimum": 0 },
+        "stdoutBytes": { "type": "integer", "minimum": 0 },
+        "stderrBytes": { "type": "integer", "minimum": 0 },
+        "stdoutSha256": { "type": "string" },
+        "stderrSha256": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "schemaVersion": "SCOPE-T17-HANDOFF/1",
+  "result": "PENDING",
+  "note": "Replaced atomically by the clean-clone rehearsal after the candidate commit is pushed."
+}
